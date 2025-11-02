@@ -1,0 +1,216 @@
+
+
+// FIX: Change express import to default import to allow for explicit type qualification and avoid global type conflicts.
+import express from 'express';
+import cors from 'cors';
+import admin from 'firebase-admin';
+import { GoogleGenAI, Type, Modality } from '@google/genai';
+import { v4 as uuidv4 } from 'uuid';
+import https from 'https';
+
+// FIX: Extend express.Request to ensure correct Express types are used.
+// Extend Express Request type to include user
+interface AuthenticatedRequest extends express.Request {
+  user?: admin.auth.DecodedIdToken;
+}
+
+// Initialize Firebase Admin SDK
+// App Hosting provides configuration via environment variables.
+admin.initializeApp();
+const db = admin.firestore();
+const storage = admin.storage();
+const bucket = storage.bucket('character-studio-comics.appspot.com');
+
+// Initialize Google GenAI
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY environment variable not set.");
+}
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+const app = express();
+app.use(cors({ origin: true }));
+app.use(express.json({ limit: '10mb' }));
+
+// FIX: Use explicit express.Response and express.NextFunction types in middleware signature.
+// Auth Middleware
+const authMiddleware = async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send('Unauthorized: No token provided.');
+  }
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Error verifying Firebase ID token:', error);
+    return res.status(403).send('Unauthorized: Invalid token.');
+  }
+};
+
+// --- API Endpoints ---
+
+// FIX: Use explicit express.Response type in handler.
+app.post('/getCharacterLibrary', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+  const uid = req.user?.uid;
+  if (!uid) return res.status(400).send('User ID not found.');
+
+  try {
+    const snapshot = await db.collection('characters').where('userId', '==', uid).orderBy('createdAt', 'desc').get();
+    const characters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(characters);
+  } catch (error) {
+    console.error('Error getting character library:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// FIX: Use explicit express.Response type in handler.
+app.post('/getCharacterById', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+  const uid = req.user?.uid;
+  const { characterId } = req.body;
+  if (!uid || !characterId) return res.status(400).send('User ID or Character ID missing.');
+
+  try {
+    const docRef = db.collection('characters').doc(characterId);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      return res.status(404).send('Character not found.');
+    }
+    const character = doc.data();
+    if (character?.userId !== uid) {
+      return res.status(403).send('Forbidden: You do not own this character.');
+    }
+    res.status(200).json({ id: doc.id, ...character });
+  } catch (error) {
+    console.error('Error getting character by ID:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// FIX: Use explicit express.Response type in handler.
+app.post('/createCharacterPair', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+    const uid = req.user?.uid;
+    const { charA, charB } = req.body; // base64 strings
+
+    if (!uid || !charA || !charB) {
+        return res.status(400).send('Missing required data.');
+    }
+
+    const processCharacter = async (base64Image: string) => {
+        const imagePart = {
+            inlineData: { data: base64Image.split(',')[1], mimeType: base64Image.split(';')[0].split(':')[1] }
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [imagePart, { text: "Analyze this character image and describe it. Provide a creative name, a short compelling description, and 5-7 relevant keywords." }] },
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        characterName: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ['characterName', 'description', 'keywords']
+                }
+            }
+        });
+
+        const result = JSON.parse(response.text);
+        const characterId = uuidv4();
+        const filePath = `uploads/${uid}/${characterId}.jpg`;
+        const imageBuffer = Buffer.from(base64Image.split(',')[1], 'base64');
+        
+        const file = bucket.file(filePath);
+        await file.save(imageBuffer, { contentType: 'image/jpeg' });
+        await file.makePublic();
+        const imageUrl = file.publicUrl();
+
+        const characterData = {
+            ...result,
+            userId: uid,
+            imageUrl,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection('characters').doc(characterId).set(characterData);
+        return { id: characterId, ...characterData };
+    };
+
+    try {
+        const [resultA, resultB] = await Promise.all([processCharacter(charA), processCharacter(charB)]);
+        res.status(201).json([resultA, resultB]);
+    } catch (error) {
+        console.error('Error creating character pair:', error);
+        res.status(500).send('Internal Server Error while creating characters.');
+    }
+});
+
+const downloadImageAsBase64 = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        https.get(url, (response) => {
+            const chunks: Uint8Array[] = [];
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                resolve(buffer.toString('base64'));
+            });
+        }).on('error', (err) => {
+            reject(`Failed to download image: ${err.message}`);
+        });
+    });
+};
+
+// FIX: Use explicit express.Response type in handler.
+app.post('/generateCharacterVisualization', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+    const uid = req.user?.uid;
+    const { characterId, prompt } = req.body;
+    if (!uid || !characterId || !prompt) return res.status(400).send('Missing required data.');
+
+    try {
+        const docRef = db.collection('characters').doc(characterId);
+        const doc = await docRef.get();
+        if (!doc.exists || doc.data()?.userId !== uid) {
+            return res.status(404).send('Character not found or access denied.');
+        }
+
+        const character = doc.data();
+        if(!character || !character.imageUrl) {
+            return res.status(500).send('Character data is invalid.');
+        }
+
+        const base64Image = await downloadImageAsBase64(character.imageUrl);
+        
+        const imagePart = {
+          inlineData: { data: base64Image, mimeType: 'image/jpeg' }
+        };
+        const textPart = { text: prompt };
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: { parts: [imagePart, textPart] },
+          config: { responseModalities: [Modality.IMAGE] }
+        });
+        
+        const generatedImagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+        if (!generatedImagePart || !generatedImagePart.inlineData) {
+            throw new Error('No image was generated by the model.');
+        }
+
+        const newImageBase64 = generatedImagePart.inlineData.data;
+        res.status(200).json({ base64Image: newImageBase64 });
+    } catch (error) {
+        console.error('Error generating visualization:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// FIX: Ensure PORT is a number, as required by app.listen.
+const PORT = Number(process.env.PORT) || 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`);
+});

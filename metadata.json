@@ -1,0 +1,5 @@
+{
+  "name": "Character Studio",
+  "description": "A web application to create, manage, and visualize comic book characters using AI. Users can upload character images, generate descriptions and keywords with Gemini, and create new artistic visualizations based on prompts.",
+  "requestFramePermissions": []
+}
