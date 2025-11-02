@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCharacterPair } from '../services/api';
 import Loader from '../components/Loader';
@@ -92,7 +92,7 @@ const CreateCharacter: React.FC = () => {
       <h1 className="text-3xl font-bold mb-6 text-center">Create a Character Pair</h1>
       <p className="text-center text-gray-400 mb-8">Upload two images. Our AI will analyze them, generate profiles, and add them to your library.</p>
       
-      {loading && <Loader message="Analyzing images and creating characters..." />}
+      {loading && <Loader message="Analyzing images & creating characters... This may take a moment." />}
       
       <form onSubmit={handleSubmit} className={loading ? 'hidden' : 'block'}>
         {error && <div className="mb-6"><ErrorDisplay message={error} /></div>}

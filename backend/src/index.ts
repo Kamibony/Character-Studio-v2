@@ -1,8 +1,8 @@
 
 
-// FIX: Change express import to default import to allow for explicit type qualification and avoid global type conflicts.
-// FIX: Import Request, Response, and NextFunction types directly from express to resolve type errors.
-import express, { Request, Response, NextFunction } from 'express';
+// FIX: Change express import to a default import to avoid global type conflicts.
+// This allows for explicit type qualification (e.g., express.Request).
+import express from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
@@ -36,9 +36,9 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
-// FIX: Use explicit express.Request, express.Response and express.NextFunction types in middleware signature.
 // Auth Middleware
-const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+// FIX: Use explicit express.Request, express.Response and express.NextFunction types in middleware signature to resolve type conflicts.
+const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Unauthorized: No token provided.');
@@ -56,8 +56,8 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
 // --- API Endpoints ---
 
-// FIX: Use explicit express.Request and express.Response types in handler.
-app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(400).send('User ID not found.');
 
@@ -71,8 +71,8 @@ app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Respo
   }
 });
 
-// FIX: Use explicit express.Request and express.Response types in handler.
-app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
   if (!uid || !characterId) return res.status(400).send('User ID or Character ID missing.');
@@ -94,8 +94,8 @@ app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response
   }
 });
 
-// FIX: Use explicit express.Request and express.Response types in handler.
-app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+app.post('/createCharacterPair', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { charA, charB } = req.body; // base64 strings
 
@@ -124,8 +124,15 @@ app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Respo
                 }
             }
         });
+        
+        let result;
+        try {
+            result = JSON.parse(response.text);
+        } catch (parseError) {
+            console.error('Failed to parse Gemini response as JSON:', response.text);
+            throw new Error('AI response was not valid JSON.');
+        }
 
-        const result = JSON.parse(response.text);
         const characterId = uuidv4();
         const filePath = `uploads/${uid}/${characterId}.jpg`;
         const imageBuffer = Buffer.from(base64Image.split(',')[1], 'base64');
@@ -146,11 +153,26 @@ app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Respo
         return { id: characterId, ...characterData };
     };
 
+    let resultA: { id: string } | null = null;
     try {
-        const [resultA, resultB] = await Promise.all([processCharacter(charA), processCharacter(charB)]);
+        resultA = await processCharacter(charA);
+        const resultB = await processCharacter(charB);
         res.status(201).json([resultA, resultB]);
     } catch (error) {
         console.error('Error creating character pair:', error);
+        
+        // Cleanup logic: If the first character was created but the second one failed, delete the first one.
+        if (resultA) {
+            try {
+                console.log(`Cleaning up character ${resultA.id} due to failed pair creation.`);
+                const filePath = `uploads/${uid}/${resultA.id}.jpg`;
+                await db.collection('characters').doc(resultA.id).delete();
+                await bucket.file(filePath).delete();
+                console.log(`Cleanup successful for character ${resultA.id}.`);
+            } catch (cleanupError) {
+                console.error(`CRITICAL: Failed to cleanup character ${resultA.id}. Manual cleanup required.`, cleanupError);
+            }
+        }
         res.status(500).send('Internal Server Error while creating characters.');
     }
 });
@@ -170,8 +192,8 @@ const downloadImageAsBase64 = (url: string): Promise<string> => {
     });
 };
 
-// FIX: Use explicit express.Request and express.Response types in handler.
-app.post('/generateCharacterVisualization', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+app.post('/generateCharacterVisualization', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { characterId, prompt } = req.body;
     if (!uid || !characterId || !prompt) return res.status(400).send('Missing required data.');

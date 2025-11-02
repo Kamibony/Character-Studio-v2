@@ -35,7 +35,7 @@ const Login: React.FC = () => {
 
   const handleSignIn = () => {
     setIsAuthenticating(true);
-    signInWithRedirect(auth, googleProvider).catch(err => {
+    signInWithRedirect(auth, googleProvider).catch(() => {
       setError("Could not start sign-in process.");
       setIsAuthenticating(false);
     });
