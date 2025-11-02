@@ -8,10 +8,14 @@ import { GoogleGenAI, Type, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
 
-// FIX: Extend express.Request to ensure correct Express types are used.
-// Extend Express Request type to include user
-interface AuthenticatedRequest extends express.Request {
-  user?: admin.auth.DecodedIdToken;
+// FIX: Use declaration merging to extend the Express Request type globally.
+// This is the standard way to add properties to the request object in Express with TypeScript.
+declare global {
+  namespace Express {
+    interface Request {
+      user?: admin.auth.DecodedIdToken;
+    }
+  }
 }
 
 // Initialize Firebase Admin SDK
@@ -31,9 +35,9 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
-// FIX: Use explicit express.Response and express.NextFunction types in middleware signature.
+// FIX: Use explicit express.Request, express.Response and express.NextFunction types in middleware signature.
 // Auth Middleware
-const authMiddleware = async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Unauthorized: No token provided.');
@@ -51,8 +55,8 @@ const authMiddleware = async (req: AuthenticatedRequest, res: express.Response, 
 
 // --- API Endpoints ---
 
-// FIX: Use explicit express.Response type in handler.
-app.post('/getCharacterLibrary', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler.
+app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(400).send('User ID not found.');
 
@@ -66,8 +70,8 @@ app.post('/getCharacterLibrary', authMiddleware, async (req: AuthenticatedReques
   }
 });
 
-// FIX: Use explicit express.Response type in handler.
-app.post('/getCharacterById', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler.
+app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
   if (!uid || !characterId) return res.status(400).send('User ID or Character ID missing.');
@@ -89,8 +93,8 @@ app.post('/getCharacterById', authMiddleware, async (req: AuthenticatedRequest, 
   }
 });
 
-// FIX: Use explicit express.Response type in handler.
-app.post('/createCharacterPair', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler.
+app.post('/createCharacterPair', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { charA, charB } = req.body; // base64 strings
 
@@ -165,8 +169,8 @@ const downloadImageAsBase64 = (url: string): Promise<string> => {
     });
 };
 
-// FIX: Use explicit express.Response type in handler.
-app.post('/generateCharacterVisualization', authMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+// FIX: Use explicit express.Request and express.Response types in handler.
+app.post('/generateCharacterVisualization', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { characterId, prompt } = req.body;
     if (!uid || !characterId || !prompt) return res.status(400).send('Missing required data.');
