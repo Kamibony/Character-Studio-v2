@@ -1,4 +1,4 @@
-// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy.
+// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy 3.
 import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -29,6 +29,14 @@ async function accessSecretVersion() {
     process.exit(1); // Exit if the secret cannot be accessed
   }
 }
+
+// Load environment variables from .env file
+dotenv.config();
+
+// --- DIAGNOSTIC LOG ---
+// Log the test variable to check if env vars from apphosting.yaml are loaded.
+console.log(`TEST_VAR value from apphosting.yaml is: "${process.env.TEST_VAR}"`);
+// --- END DIAGNOSTIC LOG ---
 
 // Standard way to add properties to the request object in Express with TypeScript.
 declare global {
