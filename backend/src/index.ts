@@ -1,7 +1,6 @@
-// FIX: The combined import `import express, { ... }` is problematic for modules using `export =`, like express.
-// This was causing type resolution errors. Separating the value import from type imports resolves this.
+// FIX: The original combined import for express was causing type resolution errors.
+// Using the default import and explicitly referencing types via the `express` namespace (e.g., `express.Request`) resolves these conflicts.
 import express from 'express';
-import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
@@ -34,7 +33,8 @@ app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // Auth Middleware
-const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+// FIX: Using explicit `express.Request`, `express.Response`, and `express.NextFunction` types to avoid ambiguity.
+const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Unauthorized: No token provided.');
@@ -52,7 +52,8 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
 // --- API Endpoints ---
 
-app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Using explicit `express.Request` and `express.Response` types.
+app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(400).send('User ID not found.');
 
@@ -66,7 +67,8 @@ app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Respo
   }
 });
 
-app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Using explicit `express.Request` and `express.Response` types.
+app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
   if (!uid || !characterId) return res.status(400).send('User ID or Character ID missing.');
@@ -88,7 +90,8 @@ app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response
   }
 });
 
-app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Using explicit `express.Request` and `express.Response` types.
+app.post('/createCharacterPair', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { charA, charB } = req.body; // base64 strings
 
@@ -184,7 +187,8 @@ const downloadImageAsBase64 = (url: string): Promise<string> => {
     });
 };
 
-app.post('/generateCharacterVisualization', authMiddleware, async (req: Request, res: Response) => {
+// FIX: Using explicit `express.Request` and `express.Response` types.
+app.post('/generateCharacterVisualization', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { characterId, prompt } = req.body;
     if (!uid || !characterId || !prompt) return res.status(400).send('Missing required data.');
