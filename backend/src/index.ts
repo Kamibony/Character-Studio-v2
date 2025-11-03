@@ -1,4 +1,4 @@
-// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy.
+// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy 3.
 import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
