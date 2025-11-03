@@ -1,10 +1,34 @@
 // FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy.
 import express, { type Request, type Response, type NextFunction } from 'express';
+import dotenv from 'dotenv';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+
+// Load environment variables from .env file
+dotenv.config();
+
+// --- Secret Manager ---
+const secretManagerClient = new SecretManagerServiceClient();
+let ai: GoogleGenAI;
+
+async function accessSecretVersion() {
+  const name = 'projects/character-studio-comics/secrets/gemini-api-key/versions/latest';
+  try {
+    const [version] = await secretManagerClient.accessSecretVersion({ name });
+    const payload = version.payload?.data?.toString();
+    if (!payload) {
+      throw new Error('Secret payload is empty');
+    }
+    return payload;
+  } catch (error) {
+    console.error('Error accessing secret from Secret Manager:', error);
+    process.exit(1); // Exit if the secret cannot be accessed
+  }
+}
 
 // Standard way to add properties to the request object in Express with TypeScript.
 declare global {
@@ -22,10 +46,11 @@ const storage = admin.storage();
 const bucket = storage.bucket('character-studio-comics.appspot.com');
 
 // Initialize Google GenAI
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY environment variable not set.");
+async function initializeGenAI() {
+  const apiKey = await accessSecretVersion();
+  ai = new GoogleGenAI({ apiKey });
+  console.log('Successfully initialized Google GenAI client.');
 }
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
 
 const app = express();
 app.use(cors({ origin: true }));
@@ -262,6 +287,10 @@ app.post('/generateCharacterVisualization', authMiddleware, async (req: Request,
 });
 
 const PORT = Number(process.env.PORT) || 8080;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
+
+// Start the server after GenAI client is initialized
+initializeGenAI().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 });

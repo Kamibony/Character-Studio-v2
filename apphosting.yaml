@@ -1,23 +1,7 @@
-
-# Príkaz na build celej aplikácie (frontend a backend)
-# Spustí sa z koreňového adresára projektu.
 build: npm run build
 
-# Konfiguruje backend pre Firebase App Hosting
 backend:
-  # Adresár, kde je umiestnený kód backendu (package.json, atď.)
   root: backend
-
-  # Príkaz na spustenie servera po builde
-  # Musí sa zhodovať so "start" skriptom v backend/package.json
   run: npm run start
 
-  # Definuje premenné prostredia pre backend
-  env:
-    # Sprístupní API kľúč ako process.env.GEMINI_API_KEY
-    - variable: GEMINI_API_KEY
-      # Hodnota sa načíta zo Secret Manager
-      secret: gemini-api-key
-
-# Definuje adresár, kde sa nachádza statický frontend (po `npm run build`)
 publicDir: frontend/dist
