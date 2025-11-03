@@ -1,4 +1,4 @@
-// FIX: Zmenený import, aby sa naimportovala hodnota 'express' a zároveň aj typy 'Request', 'Response' a 'NextFunction'.
+// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
@@ -32,7 +32,7 @@ app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // Auth Middleware
-// FIX: Použité priamo importované typy Request, Response, NextFunction.
+// FIX 1: Používa priamo importované typy (Request, Response, NextFunction) bez prefixu 'express.'
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -51,7 +51,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
 // --- API Endpoints ---
 
-// FIX: Použité priamo importované typy Request a Response.
+// FIX 1: Používa priamo importované typy
 app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(400).send('User ID not found.');
@@ -66,7 +66,7 @@ app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Respo
   }
 });
 
-// FIX: Použité priamo importované typy Request a Response.
+// FIX 1: Používa priamo importované typy
 app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
@@ -89,7 +89,7 @@ app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response
   }
 });
 
-// FIX: Použité priamo importované typy Request a Response.
+// FIX 1: Používa priamo importované typy
 app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
     const { charA, charB } = req.body; // base64 strings
@@ -186,7 +186,7 @@ const downloadImageAsBase64 = (url: string): Promise<string> => {
     });
 };
 
-// FIX: Použité priamo importované typy Request a Response.
+// FIX 1: Používa priamo importované typy
 app.post('/generateCharacterVisualization', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
     const { characterId, prompt } = req.body;
@@ -206,9 +206,11 @@ app.post('/generateCharacterVisualization', authMiddleware, async (req: Request,
             return res.status(403).send('Forbidden: You do not own this character.');
         }
 
-        // Toto je tvoja správna oprava z predchádzajúceho kroku, ponechávam ju.
+        // Kontrola, či character a character.imageUrl existujú
         if (character && typeof character.imageUrl === 'string') {
-            const base64Image = await downloadImageAsBase64(character.imageUrl);
+            
+            // FIX 2: Pridané `as string` na vyriešenie chyby TS2345
+            const base64Image = await downloadImageAsBase64(character.imageUrl as string);
         
             const imagePart = {
               inlineData: { data: base64Image, mimeType: 'image/jpeg' }
