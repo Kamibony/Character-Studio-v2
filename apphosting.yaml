@@ -18,6 +18,8 @@ backend:
     - variable: GEMINI_API_KEY
       # Hodnota sa načíta zo Secret Manager
       secret: gemini-api-key
+    - variable: TEST_VAR
+      value: "hello"
 
 # Definuje adresár, kde sa nachádza statický frontend (po `npm run build`)
 publicDir: frontend/dist
