@@ -1,6 +1,5 @@
-// FIX: The original combined import for express was causing type resolution errors.
-// Using the default import and explicitly referencing types via the `express` namespace (e.g., `express.Request`) resolves these conflicts.
-import express from 'express';
+// FIX: Zmenený import, aby sa naimportovala hodnota 'express' a zároveň aj typy 'Request', 'Response' a 'NextFunction'.
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
@@ -33,8 +32,8 @@ app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // Auth Middleware
-// FIX: Using explicit `express.Request`, `express.Response`, and `express.NextFunction` types to avoid ambiguity.
-const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+// FIX: Použité priamo importované typy Request, Response, NextFunction.
+const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Unauthorized: No token provided.');
@@ -52,8 +51,8 @@ const authMiddleware = async (req: express.Request, res: express.Response, next:
 
 // --- API Endpoints ---
 
-// FIX: Using explicit `express.Request` and `express.Response` types.
-app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, res: express.Response) => {
+// FIX: Použité priamo importované typy Request a Response.
+app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(400).send('User ID not found.');
 
@@ -67,8 +66,8 @@ app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, re
   }
 });
 
-// FIX: Using explicit `express.Request` and `express.Response` types.
-app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: express.Response) => {
+// FIX: Použité priamo importované typy Request a Response.
+app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
   if (!uid || !characterId) return res.status(400).send('User ID or Character ID missing.');
@@ -90,8 +89,8 @@ app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: 
   }
 });
 
-// FIX: Using explicit `express.Request` and `express.Response` types.
-app.post('/createCharacterPair', authMiddleware, async (req: express.Request, res: express.Response) => {
+// FIX: Použité priamo importované typy Request a Response.
+app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
     const { charA, charB } = req.body; // base64 strings
 
@@ -187,8 +186,8 @@ const downloadImageAsBase64 = (url: string): Promise<string> => {
     });
 };
 
-// FIX: Using explicit `express.Request` and `express.Response` types.
-app.post('/generateCharacterVisualization', authMiddleware, async (req: express.Request, res: express.Response) => {
+// FIX: Použité priamo importované typy Request a Response.
+app.post('/generateCharacterVisualization', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
     const { characterId, prompt } = req.body;
     if (!uid || !characterId || !prompt) return res.status(400).send('Missing required data.');
@@ -207,7 +206,7 @@ app.post('/generateCharacterVisualization', authMiddleware, async (req: express.
             return res.status(403).send('Forbidden: You do not own this character.');
         }
 
-        // This robust type guard is the fix. The logic that depends on imageUrl is now nested inside.
+        // Toto je tvoja správna oprava z predchádzajúceho kroku, ponechávam ju.
         if (character && typeof character.imageUrl === 'string') {
             const base64Image = await downloadImageAsBase64(character.imageUrl);
         
