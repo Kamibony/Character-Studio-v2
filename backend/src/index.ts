@@ -1,10 +1,19 @@
 // FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy.
 import express, { type Request, type Response, type NextFunction } from 'express';
+import dotenv from 'dotenv';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
+
+// Load environment variables from .env file
+dotenv.config();
+
+// --- DIAGNOSTIC LOG ---
+// Log the test variable to check if env vars from apphosting.yaml are loaded.
+console.log(`TEST_VAR value from apphosting.yaml is: "${process.env.TEST_VAR}"`);
+// --- END DIAGNOSTIC LOG ---
 
 // Standard way to add properties to the request object in Express with TypeScript.
 declare global {
@@ -22,10 +31,14 @@ const storage = admin.storage();
 const bucket = storage.bucket('character-studio-comics.appspot.com');
 
 // Initialize Google GenAI
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY environment variable not set.");
+// Temporarily bypass the API key check for diagnostics.
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.log("GEMINI_API_KEY environment variable not set. This will cause errors if you call AI endpoints, but the server will start for diagnostics.");
 }
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+// The 'ai' constant will be initialized with a potentially undefined key.
+// This is acceptable for this diagnostic step, as we are only checking server startup.
+const ai = new GoogleGenAI({ apiKey: apiKey as string });
 
 const app = express();
 app.use(cors({ origin: true }));
