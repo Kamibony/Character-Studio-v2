@@ -1,6 +1,4 @@
-
-
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getCharacterById, generateCharacterVisualization } from '../services/api';
 import { UserCharacter } from '../types';
@@ -8,7 +6,7 @@ import Loader from '../components/Loader';
 import ErrorDisplay from '../components/ErrorDisplay';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 
-const CharacterDetail: React.FC = () => {
+const CharacterDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [character, setCharacter] = useState<UserCharacter | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +39,7 @@ const CharacterDetail: React.FC = () => {
     fetchCharacter();
   }, [fetchCharacter]);
 
-  const handleGeneration = async (e: React.FormEvent) => {
+  const handleGeneration = async (e: FormEvent) => {
     e.preventDefault();
     if (!id || !prompt) {
         setGenerationError("Prompt cannot be empty.");
@@ -51,7 +49,6 @@ const CharacterDetail: React.FC = () => {
     setGenerationError(null);
     setGeneratedImage(null);
     try {
-        // FIX: Add type assertion to correctly type the API response.
         const result = await generateCharacterVisualization(id, prompt) as { base64Image: string };
         setGeneratedImage(`data:image/png;base64,${result.base64Image}`);
     } catch(err) {

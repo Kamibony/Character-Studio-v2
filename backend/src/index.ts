@@ -1,16 +1,13 @@
-
-
-// FIX: Change express import to a default import to avoid global type conflicts.
-// This allows for explicit type qualification (e.g., express.Request).
-import express from 'express';
+// FIX: The default import of express can cause type resolution issues.
+// Using `import * as express` and qualified types (e.g., `express.Request`) is more robust.
+import * as express from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
 
-// FIX: Use declaration merging to extend the Express Request type globally.
-// This is the standard way to add properties to the request object in Express with TypeScript.
+// Standard way to add properties to the request object in Express with TypeScript.
 declare global {
   namespace Express {
     interface Request {
@@ -20,7 +17,6 @@ declare global {
 }
 
 // Initialize Firebase Admin SDK
-// App Hosting provides configuration via environment variables.
 admin.initializeApp();
 const db = admin.firestore();
 const storage = admin.storage();
@@ -37,7 +33,7 @@ app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // Auth Middleware
-// FIX: Use explicit express.Request, express.Response and express.NextFunction types in middleware signature to resolve type conflicts.
+// FIX: Use qualified express types to match the updated import.
 const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -56,7 +52,7 @@ const authMiddleware = async (req: express.Request, res: express.Response, next:
 
 // --- API Endpoints ---
 
-// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+// FIX: Use qualified express types to match the updated import.
 app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   if (!uid) return res.status(400).send('User ID not found.');
@@ -71,7 +67,7 @@ app.post('/getCharacterLibrary', authMiddleware, async (req: express.Request, re
   }
 });
 
-// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+// FIX: Use qualified express types to match the updated import.
 app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: express.Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
@@ -94,7 +90,7 @@ app.post('/getCharacterById', authMiddleware, async (req: express.Request, res: 
   }
 });
 
-// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+// FIX: Use qualified express types to match the updated import.
 app.post('/createCharacterPair', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { charA, charB } = req.body; // base64 strings
@@ -161,7 +157,6 @@ app.post('/createCharacterPair', authMiddleware, async (req: express.Request, re
     } catch (error) {
         console.error('Error creating character pair:', error);
         
-        // Cleanup logic: If the first character was created but the second one failed, delete the first one.
         if (resultA) {
             try {
                 console.log(`Cleaning up character ${resultA.id} due to failed pair creation.`);
@@ -192,7 +187,7 @@ const downloadImageAsBase64 = (url: string): Promise<string> => {
     });
 };
 
-// FIX: Use explicit express.Request and express.Response types in handler to resolve type conflicts.
+// FIX: Use qualified express types to match the updated import.
 app.post('/generateCharacterVisualization', authMiddleware, async (req: express.Request, res: express.Response) => {
     const uid = req.user?.uid;
     const { characterId, prompt } = req.body;
@@ -236,7 +231,6 @@ app.post('/generateCharacterVisualization', authMiddleware, async (req: express.
     }
 });
 
-// FIX: Ensure PORT is a number, as required by app.listen.
 const PORT = Number(process.env.PORT) || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

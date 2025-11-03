@@ -1,17 +1,16 @@
-
-import React from 'react';
+import type { ReactElement } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../App';
 
 interface ProtectedRouteProps {
-  children: React.ReactElement;
+  children: ReactElement;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return null; // Or a loader, but App.tsx already handles the main loading state
+    return null; // App.tsx already handles the main loading state
   }
 
   if (!user) {

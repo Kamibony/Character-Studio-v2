@@ -1,23 +1,24 @@
-
-import React, { useState } from 'react';
+import { useState, ChangeEvent, MouseEvent, Dispatch, SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCharacterPair } from '../services/api';
 import Loader from '../components/Loader';
 import ErrorDisplay from '../components/ErrorDisplay';
 import { UploadCloud, X } from 'lucide-react';
 
-const ImageUpload: React.FC<{
+interface ImageUploadProps {
   image: string | null;
   onImageChange: (file: File | null) => void;
   id: string;
-}> = ({ image, onImageChange, id }) => {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+}
+
+const ImageUpload = ({ image, onImageChange, id }: ImageUploadProps) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       onImageChange(e.target.files[0]);
     }
   };
   
-  const handleRemove = (e: React.MouseEvent) => {
+  const handleRemove = (e: MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     onImageChange(null);
@@ -48,7 +49,7 @@ const ImageUpload: React.FC<{
 };
 
 
-const CreateCharacter: React.FC = () => {
+const CreateCharacter = () => {
   const [charA, setCharA] = useState<File | null>(null);
   const [charB, setCharB] = useState<File | null>(null);
   const [previewA, setPreviewA] = useState<string | null>(null);
@@ -57,7 +58,7 @@ const CreateCharacter: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleImageChange = (setter: React.Dispatch<React.SetStateAction<File | null>>, previewSetter: React.Dispatch<React.SetStateAction<string | null>>) => (file: File | null) => {
+  const handleImageChange = (setter: Dispatch<SetStateAction<File | null>>, previewSetter: Dispatch<SetStateAction<string | null>>) => (file: File | null) => {
     setter(file);
     if (file) {
       const reader = new FileReader();

@@ -1,12 +1,10 @@
-
-import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { useAuth } from '../App';
 import { LogOut, User as UserIcon, PlusCircle, Library } from 'lucide-react';
 
-const Header: React.FC = () => {
+const Header = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 

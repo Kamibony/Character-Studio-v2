@@ -1,16 +1,15 @@
-
-import React, { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { useAuth } from '../App';
 import Loader from '../components/Loader';
 
-const Login: React.FC = () => {
+const Login = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [error, setError] = React.useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = React.useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
 
   useEffect(() => {
     if (!loading) {

@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getCharacterLibrary } from '../services/api';
 import { UserCharacter } from '../types';
@@ -7,7 +6,7 @@ import Loader from '../components/Loader';
 import ErrorDisplay from '../components/ErrorDisplay';
 import { PlusCircle } from 'lucide-react';
 
-const CharacterCard: React.FC<{ character: UserCharacter }> = ({ character }) => (
+const CharacterCard = ({ character }: { character: UserCharacter }) => (
   <Link to={`/character/${character.id}`} className="block group">
     <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-lg bg-gray-700">
       <img
@@ -22,7 +21,7 @@ const CharacterCard: React.FC<{ character: UserCharacter }> = ({ character }) =>
 );
 
 
-const CharacterLibrary: React.FC = () => {
+const CharacterLibrary = () => {
   const [characters, setCharacters] = useState<UserCharacter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
