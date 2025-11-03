@@ -1,10 +1,14 @@
 // FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy.
 import express, { type Request, type Response, type NextFunction } from 'express';
+import dotenv from 'dotenv';
 import cors from 'cors';
 import admin from 'firebase-admin';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Standard way to add properties to the request object in Express with TypeScript.
 declare global {
