@@ -135,11 +135,18 @@ app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Respo
             }
         });
         
+        // FIX 3: Pridaná kontrola, či `response.text` existuje, aby sa predišlo chybe TS2345
+        const responseText = response.text;
+        if (typeof responseText !== 'string') {
+            console.error('Gemini response is missing text body:', response);
+            throw new Error('AI response was empty or invalid.');
+        }
+
         let result;
         try {
-            result = JSON.parse(response.text);
+            result = JSON.parse(responseText);
         } catch (parseError) {
-            console.error('Failed to parse Gemini response as JSON:', response.text);
+            console.error('Failed to parse Gemini response as JSON:', responseText);
             throw new Error('AI response was not valid JSON.');
         }
 
