@@ -3,10 +3,5 @@ build: npm run build
 backend:
   root: backend
   run: npm run start
-  env:
-    - variable: GEMINI_API_KEY
-      secret: gemini-api-key
-    - variable: TEST_VAR
-      value: "hello"
 
 publicDir: frontend/dist
