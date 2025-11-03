@@ -10,6 +10,11 @@ import https from 'https';
 // Load environment variables from .env file
 dotenv.config();
 
+// --- DIAGNOSTIC LOG ---
+// Log all available environment variables to check if the secret is loaded.
+console.log('Available environment variables:', process.env);
+// --- END DIAGNOSTIC LOG ---
+
 // Standard way to add properties to the request object in Express with TypeScript.
 declare global {
   namespace Express {
