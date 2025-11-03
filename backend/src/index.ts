@@ -107,8 +107,8 @@ app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Respo
             throw new Error('Invalid base64 string format.');
         }
 
-        const mimeTypePart = header.split(';')[0];
-        const mimeType = mimeTypePart ? mimeTypePart.split(':')[1] : undefined;
+        // FIX 4: Refactoring MIME type extraction to satisfy TypeScript's type checker.
+        const mimeType = header.split(';')[0]?.split(':')[1];
 
         if (!mimeType) {
             throw new Error('Could not determine mime type from base64 string.');
