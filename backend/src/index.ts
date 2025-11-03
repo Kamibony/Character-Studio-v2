@@ -99,8 +99,23 @@ app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Respo
     }
 
     const processCharacter = async (base64Image: string) => {
+        const parts = base64Image.split(',');
+        const header = parts[0];
+        const data = parts[1];
+
+        if (!header || !data) {
+            throw new Error('Invalid base64 string format.');
+        }
+
+        const mimeTypePart = header.split(';')[0];
+        const mimeType = mimeTypePart ? mimeTypePart.split(':')[1] : undefined;
+
+        if (!mimeType) {
+            throw new Error('Could not determine mime type from base64 string.');
+        }
+
         const imagePart = {
-            inlineData: { data: base64Image.split(',')[1], mimeType: base64Image.split(';')[0].split(':')[1] }
+            inlineData: { data, mimeType }
         };
 
         const response = await ai.models.generateContent({
@@ -130,7 +145,7 @@ app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Respo
 
         const characterId = uuidv4();
         const filePath = `uploads/${uid}/${characterId}.jpg`;
-        const imageBuffer = Buffer.from(base64Image.split(',')[1], 'base64');
+        const imageBuffer = Buffer.from(data, 'base64');
         
         const file = bucket.file(filePath);
         await file.save(imageBuffer, { contentType: 'image/jpeg' });
