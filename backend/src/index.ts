@@ -1,4 +1,4 @@
-// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.
+// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy.
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import admin from 'firebase-admin';
