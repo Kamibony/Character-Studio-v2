@@ -1,4 +1,3 @@
-
 import { auth } from './firebase';
 
 const callApi = async <T,>(endpoint: string, body: object): Promise<T> => {
@@ -9,7 +8,10 @@ const callApi = async <T,>(endpoint: string, body: object): Promise<T> => {
 
   const token = await user.getIdToken();
   
-  const response = await fetch(endpoint, {
+  // Pre lokálny vývoj s Vite proxy
+  const baseUrl = import.meta.env.DEV ? '' : window.location.origin;
+
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -26,8 +28,16 @@ const callApi = async <T,>(endpoint: string, body: object): Promise<T> => {
   return response.json();
 };
 
-export const getCharacterLibrary = () => callApi('/getCharacterLibrary', {});
-export const getCharacterById = (characterId: string) => callApi('/getCharacterById', { characterId });
-export const createCharacterPair = (charA: string, charB: string) => callApi('/createCharacterPair', { charA, charB });
-export const generateCharacterVisualization = (characterId: string, prompt: string) => callApi('/generateCharacterVisualization', { characterId, prompt });
-export const saveVisualization = (characterId: string, prompt: string, base64Image: string) => callApi('/saveVisualization', { characterId, prompt, base64Image });
+// --- API Funkcie pre Fázu 1 ---
+
+export const startCharacterTraining = (characterName: string, images: string[]) => 
+  callApi<{ id: string, status: string, name: string }>('/startCharacterTraining', { characterName, images });
+
+export const getTrainedCharacterById = (characterId: string) => 
+  callApi<TrainedCharacter>('/getTrainedCharacterById', { characterId });
+
+export const generateImageFromTrainedCharacter = (modelEndpointId: string, prompt: string) => 
+  callApi<{ base64Image: string }>('/generateImageFromTrainedCharacter', { modelEndpointId, prompt });
+
+export const saveVisualization = (characterId: string, prompt: string, base64Image: string) => 
+  callApi('/saveVisualization', { characterId, prompt, base64Image });
