@@ -1,7 +1,29 @@
+# Príkaz na build celej aplikácie (frontend a backend)
 build: npm run build
 
+# Konfiguruje backend
 backend:
+  # Adresár, kde je umiestnený kód backendu
   root: backend
+  # Príkaz na spustenie servera po builde
   run: npm run start
 
+# Definuje adresár, kde sa nachádza statický frontend
 publicDir: frontend/dist
+
+# --- PRIDANÁ SEKCIA ---
+# Pravidlá smerovania (Routing Rules)
+# Toto je kľúčové pre prepojenie frontendu a backendu.
+rewrites:
+  # Všetky požiadavky, ktoré začínajú na /startCharacterTraining, /getTrainedCharacterById, atď.
+  # budú presmerované na tvoj backend.
+  - source: "/(startCharacterTraining|getTrainedCharacterById|generateImageFromTrainedCharacter|saveVisualization)"
+    backend:
+      # ID tvojho backendu, štandardne je to "backend"
+      id: "backend"
+
+  # Všetky ostatné požiadavky pošli na index.html (pre React Router)
+  # Toto zabezpečí, že tvoja Single Page App (SPA) bude fungovať
+  # aj keď používateľ načíta priamo URL /create alebo /character/123
+  - source: "/**"
+    destination: "/index.html"
