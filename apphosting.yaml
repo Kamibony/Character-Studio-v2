@@ -7,16 +7,14 @@ backend:
   root: backend
   # Príkaz na spustenie servera po builde
   run: npm run start
-  # ID backendu (z tvojho screenshotu image_9cbb49.png)
+  # ID backendu
   id: "backend-firebase"
 
 # Definuje adresár, kde sa nachádza statický frontend
 publicDir: frontend/dist
 
-# --- ODSTRÁNILI SME RIADOK 'site: "character-studio-comics"' ---
-# Týmto sa všetko nasadí na predvolenú App Hosting URL.
-
-# Pravidlá smerovania
+# Pravidlá pre smerovanie API volaní na backend
+# Tieto pravidlá majú vyššiu prioritu
 rewrites:
   # Všetky API volania presmeruj na backend
   - source: "/(startCharacterTraining|getTrainedCharacterById|generateImageFromTrainedCharacter|saveVisualization)"
@@ -24,7 +22,9 @@ rewrites:
       # ID backendu sa musí zhodovať s tým, čo je hore
       id: "backend-firebase"
 
-  # Všetky ostatné požiadavky (vrátane GET /) pošli na index.html
-  # Toto je kľúčové pre fungovanie tvojej React aplikácie.
+# Pravidlá pre obsluhu statického frontendu (React aplikácie)
+# Toto sa aplikuje na všetko, čo nezodpovedá pravidlám vyššie
+staticContent:
+  rewrites:
   - source: "/**"
     destination: "/index.html"
