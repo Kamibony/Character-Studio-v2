@@ -1,9 +1,23 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // Pôvodné pravidlá pre 'characters'
     match /characters/{characterId} {
       allow read, create, update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if false;
+    }
+    
+    // Nové pravidlá pre 'trainedCharacters' (Fáza 1)
+    match /trainedCharacters/{characterId} {
+    	// Používateľ môže vytvoriť záznam, ak sa zhoduje jeho UID
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      
+      // Používateľ môže čítať alebo aktualizovať (napr. pridať vizualizáciu)
+      // iba svoje vlastné dokumenty.
+      allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      allow delete: if false;
     }
   }
 }
