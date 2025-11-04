@@ -6,7 +6,6 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { AiplatformServiceClient } from '@google-cloud/aiplatform'; // PRIDANÉ
 
 // --- Konfigurácia ---
 dotenv.config();
@@ -16,9 +15,6 @@ const BUCKET_NAME = 'character-studio-comics.appspot.com';
 
 // --- Klienti ---
 const secretManagerClient = new SecretManagerServiceClient();
-const aiPlatformClient = new AiplatformServiceClient({ // PRIDANÉ
-  apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
-});
 let ai: GoogleGenAI; // Pre štandardné Gemini volania
 
 // --- Inicializácia Firebase ---
