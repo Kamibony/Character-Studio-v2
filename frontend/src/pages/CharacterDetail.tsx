@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getCharacterById, generateCharacterVisualization, saveVisualization } from '../services/api';
-import { UserCharacter } from '../types';
+import { getTrainedCharacterById, generateImageFromTrainedCharacter, saveVisualization } from '../services/api';
+import { TrainedCharacter, Visualization } from '../types';
 import Loader from '../components/Loader';
 import ErrorDisplay from '../components/ErrorDisplay';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, Sparkles, CheckCircle, Clock } from 'lucide-react';
 
 const CharacterDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const [character, setCharacter] = useState<UserCharacter | null>(null);
+  const [character, setCharacter] = useState<TrainedCharacter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -16,8 +16,12 @@ const CharacterDetail = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  
   const [saving, setSaving] = useState(false);
   const [savingError, setSavingError] = useState<string | null>(null);
+  
+  // Pridáme lokálny stav pre vizualizácie, aby sa aktualizovali po uložení
+  const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 
   const fetchCharacter = useCallback(async () => {
     if (!id) {
@@ -28,8 +32,12 @@ const CharacterDetail = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getCharacterById(id) as UserCharacter;
+      const data = await getTrainedCharacterById(id);
       setCharacter(data);
+      setVisualizations(data.visualizations || []);
+      if (data.status === 'ready') {
+        setPrompt(`${data.characterName} as a comic book hero, cinematic lighting`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch character details.');
     } finally {
@@ -43,15 +51,20 @@ const CharacterDetail = () => {
 
   const handleGeneration = async (e: FormEvent) => {
     e.preventDefault();
-    if (!id || !prompt) {
-        setGenerationError("Prompt cannot be empty.");
+    if (!character?.modelEndpointId) {
+        setGenerationError("Model postavy ešte nie je pripravený.");
+        return;
+    }
+    if (!prompt) {
+        setGenerationError("Prompt nemôže byť prázdny.");
         return;
     }
     setGenerating(true);
     setGenerationError(null);
     setGeneratedImage(null);
+    setSavingError(null);
     try {
-        const result = await generateCharacterVisualization(id, prompt) as { base64Image: string };
+        const result = await generateImageFromTrainedCharacter(character.modelEndpointId, prompt);
         setGeneratedImage(`data:image/png;base64,${result.base64Image}`);
     } catch(err) {
         setGenerationError(err instanceof Error ? err.message : 'Failed to generate image.');
@@ -68,10 +81,12 @@ const CharacterDetail = () => {
     setSaving(true);
     setSavingError(null);
     try {
-        await saveVisualization(id, prompt, generatedImage);
-        // Optionally, reset state or give user feedback
+        const newVisualization = await saveVisualization(id, prompt, generatedImage) as Visualization;
+        // Pridáme novú vizualizáciu do lokálneho stavu
+        setVisualizations(prev => [newVisualization, ...prev]);
+        // Resetujeme UI
         setGeneratedImage(null);
-        setPrompt('');
+        setPrompt(`${character?.characterName} `);
     } catch(err) {
         setSavingError(err instanceof Error ? err.message : 'Failed to save visualization.');
     } finally {
@@ -79,70 +94,103 @@ const CharacterDetail = () => {
     }
   };
 
-  if (loading) return <Loader message="Loading character..." />;
+  if (loading) return <Loader message="Načítavam postavu..." />;
   if (error) return <ErrorDisplay message={error} />;
-  if (!character) return <div className="text-center">Character not found.</div>;
+  if (!character) return <div className="text-center">Postava nenájdená.</div>;
+
+  const isReady = character.status === 'ready';
 
   return (
     <div className="container mx-auto max-w-6xl">
       <Link to="/" className="inline-flex items-center text-purple-400 hover:text-purple-300 mb-6">
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Library
+        Späť do knižnice
       </Link>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
         {/* Character Info */}
-        <div>
-          <img src={character.imageUrl} alt={character.characterName} className="w-full rounded-lg shadow-lg mb-6" />
-          <h1 className="text-4xl font-bold mb-2">{character.characterName}</h1>
-          <p className="text-gray-400 mb-4">{character.description}</p>
+        <div className="md:col-span-1">
+          <img src={character.thumbnailUrl} alt={character.characterName} className="w-full rounded-lg shadow-lg mb-6" />
+          <h1 className="text-3xl font-bold mb-2">{character.characterName}</h1>
           <div className="flex flex-wrap gap-2">
-            {character.keywords.map((keyword, index) => (
-              <span key={index} className="px-3 py-1 bg-gray-700 text-sm rounded-full text-gray-300">
-                {keyword}
+            {isReady ? (
+              <span className="flex items-center px-3 py-1 bg-green-800 text-sm rounded-full text-green-200">
+                <CheckCircle className="w-4 h-4 mr-2" /> Model pripravený
               </span>
-            ))}
+            ) : (
+              <span className="flex items-center px-3 py-1 bg-yellow-800 text-sm rounded-full text-yellow-200">
+                <Clock className="w-4 h-4 mr-2 animate-spin" /> Model sa trénuje...
+              </span>
+            )}
+            <span className="px-3 py-1 bg-gray-700 text-sm rounded-full text-gray-300">
+              {character.imageCount} fotiek
+            </span>
           </div>
         </div>
 
-        {/* AI Visualization */}
-        <div className="bg-gray-800/50 p-6 rounded-lg">
+        {/* AI Visualization Studio */}
+        <div className="md:col-span-2 bg-gray-800/50 p-6 rounded-lg">
           <h2 className="text-2xl font-bold mb-4 flex items-center"><Sparkles className="w-6 h-6 mr-3 text-yellow-400"/>AI Visualization Studio</h2>
+          
+          {!isReady && (
+            <div className="text-center text-yellow-300 p-4 bg-gray-900 rounded-md">
+              <p>Model sa stále trénuje. Keď bude pripravený, budete môcť generovať obrázky.</p>
+            </div>
+          )}
+
           <form onSubmit={handleGeneration}>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder={`e.g., "${character.characterName} in a futuristic city at night, neon lights, cinematic style"`}
+              placeholder={isReady ? `e.g., "${character.characterName} v komiksovom štýle..."` : "Model sa trénuje..."}
               className="w-full p-3 bg-gray-900 border border-gray-700 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors mb-4"
-              rows={4}
+              rows={3}
+              disabled={!isReady || generating}
             />
             <button
               type="submit"
-              disabled={generating}
+              disabled={generating || !isReady}
               className="w-full py-2.5 px-4 border border-transparent rounded-md shadow-sm text-md font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 focus:ring-offset-gray-900 transition-all"
             >
-              {generating ? 'Generating...' : 'Generate New Image'}
+              {generating ? 'Generuje sa...' : 'Generovať obrázok'}
             </button>
           </form>
 
-          {generating && <Loader message="AI is creating..." />}
+          {generating && <Loader message="AI vytvára..." />}
           {generationError && <div className="mt-4"><ErrorDisplay message={generationError} /></div>}
           {savingError && <div className="mt-4"><ErrorDisplay message={savingError} /></div>}
           
           {generatedImage && (
             <div className="mt-6">
-              <h3 className="text-xl font-semibold mb-3">Generated Image:</h3>
+              <h3 className="text-xl font-semibold mb-3">Nový obrázok:</h3>
               <img src={generatedImage} alt="AI Generated Visualization" className="w-full rounded-lg shadow-md" />
               <button
                 onClick={handleSaveVisualization}
-                disabled={saving || generating || !generatedImage}
+                disabled={saving || generating}
                 className="mt-4 w-full py-2.5 px-4 border border-transparent rounded-md shadow-sm text-md font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 focus:ring-offset-gray-900 transition-all"
               >
-                {saving ? 'Saving...' : 'Save Visualization'}
+                {saving ? 'Ukladám...' : 'Uložiť vizualizáciu'}
               </button>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Galéria uložených vizualizácií */}
+      <div className="mt-12">
+        <h2 className="text-2xl font-bold mb-6">Uložené vizualizácie</h2>
+        {visualizations.length === 0 ? (
+          <p className="text-gray-400">Zatiaľ ste nevytvorili a neuložili žiadne vizualizácie pre túto postavu.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {visualizations.map((vis) => (
+              <div key={vis.id} className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                <img src={vis.imageUrl} alt={vis.prompt} className="w-full h-64 object-cover" />
+                <p className="p-4 text-sm text-gray-300 italic">"{vis.prompt}"</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
