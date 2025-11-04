@@ -1,6 +1,6 @@
-
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'; // PRIDANÉ
 
 // Presná Firebase konfigurácia pre projekt 'character-studio-comics'
 const firebaseConfig = {
@@ -15,10 +15,12 @@ const firebaseConfig = {
 // Inicializácia Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app); // PRIDANÉ
 const googleProvider = new GoogleAuthProvider();
 
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   connectAuthEmulator(auth, "http://localhost:9099");
+  connectFirestoreEmulator(db, 'localhost', 8080); // Príklad pre Firestore emulátor
 }
 
 // Nastavenie perzistencie na localStorage
@@ -31,5 +33,6 @@ setPersistence(auth, browserLocalPersistence)
 export { 
   auth, 
   googleProvider,
-  app 
+  app,
+  db // PRIDANÉ
 };
