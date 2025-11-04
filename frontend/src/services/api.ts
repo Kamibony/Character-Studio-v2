@@ -39,5 +39,6 @@ export const getTrainedCharacterById = (characterId: string) =>
 export const generateImageFromTrainedCharacter = (modelEndpointId: string, prompt: string) => 
   callApi<{ base64Image: string }>('/generateImageFromTrainedCharacter', { modelEndpointId, prompt });
 
+// Tento endpoint si už mal ("Jules" ho pridal)
 export const saveVisualization = (characterId: string, prompt: string, base64Image: string) => 
-  callApi('/saveVisualization', { characterId, prompt, base64Image });
+  callApi<Visualization>('/saveVisualization', { characterId, prompt, base64Image });
