@@ -1,4 +1,5 @@
 import { auth } from './firebase';
+import type { TrainedCharacter, Visualization } from '../types'; // <-- PRIDAJ TENTO RIADOK
 
 const callApi = async <T,>(endpoint: string, body: object): Promise<T> => {
   const user = auth.currentUser;
@@ -39,6 +40,5 @@ export const getTrainedCharacterById = (characterId: string) =>
 export const generateImageFromTrainedCharacter = (modelEndpointId: string, prompt: string) => 
   callApi<{ base64Image: string }>('/generateImageFromTrainedCharacter', { modelEndpointId, prompt });
 
-// Tento endpoint si už mal ("Jules" ho pridal)
 export const saveVisualization = (characterId: string, prompt: string, base64Image: string) => 
   callApi<Visualization>('/saveVisualization', { characterId, prompt, base64Image });
