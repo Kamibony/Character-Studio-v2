@@ -1,33 +1,18 @@
-# Príkaz na build celej aplikácie (frontend a backend)
 build: npm run build
 
-# Konfiguruje backend
-backend:
-  # Adresár, kde je umiestnený kód backendu
-  root: backend
-  # Príkaz na spustenie servera po builde
-  run: npm run start
-  # ID backendu
-  id: "backend-firebase"
-
-# Definuje adresár, kde sa nachádza statický frontend
 publicDir: frontend/dist
 
-# Pravidlá smerovania pre API, ktoré idú na backend
-# Tieto pravidlá majú najvyššiu prioritu
+backend:
+  id: "backend-firebase"
+  root: backend
+  run: npm run start
+
 rewrites:
   - source: "/(startCharacterTraining|getTrainedCharacterById|generateImageFromTrainedCharacter|saveVisualization)"
     backend:
-      # ID backendu sa musí zhodovať s tým, čo je hore
       id: "backend-firebase"
 
-# Pravidlá pre obsluhu statického frontendu (React aplikácia)
-# Toto sa aplikuje na všetko, čo nezodpovedá API pravidlám vyššie
 staticContent:
   rewrites:
-  # Explicitné pravidlo pre koreňovú cestu (Julesov nápad)
-  - source: "/"
-    destination: "/index.html"
-  # Všeobecné pravidlo pre všetky ostatné cesty (pre React Router)
-  - source: "/**"
-    destination: "/index.html"
+    - source: "/**"
+      destination: "/index.html"
