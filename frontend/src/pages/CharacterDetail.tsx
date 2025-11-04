@@ -20,7 +20,7 @@ const CharacterDetail = () => {
   const [saving, setSaving] = useState(false);
   const [savingError, setSavingError] = useState<string | null>(null);
   
-  // Pridáme lokálny stav pre vizualizácie, aby sa aktualizovali po uložení
+  // Lokálny stav pre vizualizácie, aby sa aktualizovali po uložení
   const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 
   const fetchCharacter = useCallback(async () => {
@@ -34,7 +34,7 @@ const CharacterDetail = () => {
       setError(null);
       const data = await getTrainedCharacterById(id);
       setCharacter(data);
-      setVisualizations(data.visualizations || []);
+      setVisualizations(data.visualizations || []); // Načítame existujúce
       if (data.status === 'ready') {
         setPrompt(`${data.characterName} as a comic book hero, cinematic lighting`);
       }
@@ -82,9 +82,7 @@ const CharacterDetail = () => {
     setSavingError(null);
     try {
         const newVisualization = await saveVisualization(id, prompt, generatedImage) as Visualization;
-        // Pridáme novú vizualizáciu do lokálneho stavu
         setVisualizations(prev => [newVisualization, ...prev]);
-        // Resetujeme UI
         setGeneratedImage(null);
         setPrompt(`${character?.characterName} `);
     } catch(err) {
@@ -183,7 +181,7 @@ const CharacterDetail = () => {
           <p className="text-gray-400">Zatiaľ ste nevytvorili a neuložili žiadne vizualizácie pre túto postavu.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {visualizations.map((vis) => (
+            {visualizations.sort((a, b) => b.createdAt._seconds - a.createdAt._seconds).map((vis) => (
               <div key={vis.id} className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
                 <img src={vis.imageUrl} alt={vis.prompt} className="w-full h-64 object-cover" />
                 <p className="p-4 text-sm text-gray-300 italic">"{vis.prompt}"</p>
