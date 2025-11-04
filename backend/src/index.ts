@@ -6,7 +6,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
-import { AiplatformServiceClient } from '@google-cloud/aiplatform'; // PRIDANÉ
+import { v1 } from '@google-cloud/aiplatform'; // OPRAVA 1: Importujeme 'v1' namiesto 'AiplatformServiceClient'
 
 // --- Konfigurácia ---
 dotenv.config();
@@ -16,7 +16,7 @@ const BUCKET_NAME = 'character-studio-comics.appspot.com';
 
 // --- Klienti ---
 const secretManagerClient = new SecretManagerServiceClient();
-const aiPlatformClient = new AiplatformServiceClient({ // PRIDANÉ
+const aiPlatformClient = new v1.AiplatformServiceClient({ // OPRAVA 2: Používame 'v1.AiplatformServiceClient'
   apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
 });
 let ai: GoogleGenAI; // Pre štandardné Gemini volania
@@ -60,7 +60,7 @@ declare global {
   }
 }
 
-// --- Auth Middleware (Ponechávame tvoj bypass) ---
+// --- Auth Middleware ---
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   if (process.env.FIREBASE_AUTH_EMULATOR_HOST === "true") { 
     req.user = { uid: "test-user" } as admin.auth.DecodedIdToken;
@@ -84,12 +84,9 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
 // --- API Endpoints Fázy 1 ---
 
-/**
- * Endpoint na spustenie trénovacieho jobu pre novú postavu.
- */
 app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
-  const { images, characterName } = req.body; // images je pole base64 stringov
+  const { images, characterName } = req.body; 
 
   if (!uid || !images || !Array.isArray(images) || images.length < 5 || !characterName) {
     return res.status(400).send('Missing data. Potrebných je minimálne 5 obrázkov a meno postavy.');
@@ -102,17 +99,15 @@ app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Re
   console.log(`[${characterId}] Starting training for ${characterName} for user ${uid}`);
 
   try {
-    // Krok 1: Vytvoríme záznam vo Firestore
     await characterRef.set({
       userId: uid,
       characterName: characterName,
       status: 'uploading',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       imageCount: images.length,
-      visualizations: [], // Pripravíme pole pre uložené obrázky
+      visualizations: [], 
     });
 
-    // Krok 2: Nahráme všetky trénovacie obrázky do GCS
     let thumbnailUrl = '';
     const uploadPromises = images.map(async (base64Image: string, index: number) => {
       const parts = base64Image.split(',');
@@ -131,7 +126,6 @@ app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Re
     });
     await Promise.all(uploadPromises);
 
-    // Krok 3: Aktualizujeme Firestore o thumbnail a stav "training"
     await characterRef.update({
       status: 'training',
       thumbnailUrl: thumbnailUrl,
@@ -139,9 +133,8 @@ app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Re
     
     console.log(`[${characterId}] Upload complete. Starting Vertex AI Job...`);
 
-    // Krok 4: Spustíme Vertex AI trénovací job (SIMULÁCIA)
     // ---
-    // !!! TOTO JE SIMULÁCIA. !!!
+    // !!! TOTO JE SIMULÁCIA TRÉNINGU !!!
     // ---
     console.log(`[${characterId}] SIMULATION: Starting 30-second fake training...`);
     setTimeout(async () => {
@@ -151,7 +144,7 @@ app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Re
         modelEndpointId: trainedModelEndpoint 
       });
       console.log(`[${characterId}] SIMULATION: Training finished.`);
-    }, 30000); // 30 sekúnd
+    }, 30000); 
 
     res.status(202).json({ id: characterId, status: 'training', name: characterName });
 
@@ -162,9 +155,6 @@ app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Re
   }
 });
 
-/**
- * Načíta detaily pre jednu natrénovanú postavu.
- */
 app.post('/getTrainedCharacterById', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
@@ -187,9 +177,6 @@ app.post('/getTrainedCharacterById', authMiddleware, async (req: Request, res: R
   }
 });
 
-/**
- * Vygeneruje obrázok na základe natrénovaného modelu.
- */
 app.post('/generateImageFromTrainedCharacter', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
     const { modelEndpointId, prompt } = req.body; 
@@ -222,19 +209,16 @@ app.post('/generateImageFromTrainedCharacter', authMiddleware, async (req: Reque
     }
 });
 
-/**
- * Uloží vygenerovanú vizualizáciu (z Fázy 1) do databázy.
- */
 app.post('/saveVisualization', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
-    const { characterId, prompt, base64Image } = req.body; // characterId je teraz ID 'trainedCharacters'
+    const { characterId, prompt, base64Image } = req.body; 
 
     if (!uid || !characterId || !prompt || !base64Image) {
         return res.status(400).send('Missing required data.');
     }
 
     try {
-        const docRef = db.collection('trainedCharacters').doc(characterId); // ZMENA KOLEKCIE
+        const docRef = db.collection('trainedCharacters').doc(characterId); 
         const doc = await docRef.get();
 
         if (!doc.exists) {
@@ -256,7 +240,7 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
         const publicUrl = file.publicUrl();
 
         const newVisualization = {
-            id: newImageId, // Pridávame ID pre React key
+            id: newImageId, 
             imageUrl: publicUrl,
             prompt: prompt,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
