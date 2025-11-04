@@ -1,12 +1,30 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
+  
+    // Pôvodné pravidlá pre 'uploads' (z Fázy 0)
     match /uploads/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    match /visualizations/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Nové pravidlá pre trénovacie dáta (Fáza 1)
+    match /training-data/{userId}/{characterId}/{fileName} {
+    	// Používateľ môže nahrávať (create) iba do svojho priečinka
+    	allow create: if request.auth != null && request.auth.uid == userId;
+      // Čítať trénovacie dáta by mal vedieť iba vlastník
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Pravidlá pre uložené vizualizácie
+    match /visualizations/{userId}/{characterId}/{imageId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Čítanie povoľujeme všetkým (pre jednoduché zobrazenie)
+      allow read: if true;
+    }
+    
+    // Modely (zapisuje Vertex AI, čítať by ich nemal nikto priamo)
+    match /models/{userId}/{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
