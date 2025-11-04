@@ -7,23 +7,25 @@ backend:
   root: backend
   # Príkaz na spustenie servera po builde
   run: npm run start
+  # ID backendu (z tvojho screenshotu image_9bf070.png)
+  id: "backend-firebase"
 
 # Definuje adresár, kde sa nachádza statický frontend
 publicDir: frontend/dist
 
-# --- PRIDANÁ SEKCIA ---
-# Pravidlá smerovania (Routing Rules)
-# Toto je kľúčové pre prepojenie frontendu a backendu.
+# --- KĽÚČOVÁ ZMENA ---
+# Hovoríme App Hostingu, aby nasadil obsah
+# na tvoj existujúci "Firebase Hosting" site.
+site: "character-studio-comics"
+
+# Pravidlá smerovania
 rewrites:
-  # Všetky požiadavky, ktoré začínajú na /startCharacterTraining, /getTrainedCharacterById, atď.
-  # budú presmerované na tvoj backend.
+  # Všetky API volania presmeruj na backend
   - source: "/(startCharacterTraining|getTrainedCharacterById|generateImageFromTrainedCharacter|saveVisualization)"
     backend:
-      # ID tvojho backendu, štandardne je to "backend"
-      id: "backend"
+      # ID backendu sa musí zhodovať s tým, čo je hore
+      id: "backend-firebase"
 
   # Všetky ostatné požiadavky pošli na index.html (pre React Router)
-  # Toto zabezpečí, že tvoja Single Page App (SPA) bude fungovať
-  # aj keď používateľ načíta priamo URL /create alebo /character/123
   - source: "/**"
     destination: "/index.html"
