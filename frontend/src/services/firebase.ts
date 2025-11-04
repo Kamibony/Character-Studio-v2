@@ -20,7 +20,7 @@ const googleProvider = new GoogleAuthProvider();
 
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   connectAuthEmulator(auth, "http://localhost:9099");
-  connectFirestoreEmulator(db, 'localhost', 8080); // Príklad pre Firestore emulátor
+  connectFirestoreEmulator(db, 'localhost', 8080); // Príklad pre Firestore
 }
 
 // Nastavenie perzistencie na localStorage
