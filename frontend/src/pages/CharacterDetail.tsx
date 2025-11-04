@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getCharacterById, generateCharacterVisualization } from '../services/api';
+import { getCharacterById, generateCharacterVisualization, saveVisualization } from '../services/api';
 import { UserCharacter } from '../types';
 import Loader from '../components/Loader';
 import ErrorDisplay from '../components/ErrorDisplay';
@@ -16,6 +16,8 @@ const CharacterDetail = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savingError, setSavingError] = useState<string | null>(null);
 
   const fetchCharacter = useCallback(async () => {
     if (!id) {
@@ -55,6 +57,25 @@ const CharacterDetail = () => {
         setGenerationError(err instanceof Error ? err.message : 'Failed to generate image.');
     } finally {
         setGenerating(false);
+    }
+  };
+
+  const handleSaveVisualization = async () => {
+    if (!id || !prompt || !generatedImage) {
+        setSavingError("Missing data to save visualization.");
+        return;
+    }
+    setSaving(true);
+    setSavingError(null);
+    try {
+        await saveVisualization(id, prompt, generatedImage);
+        // Optionally, reset state or give user feedback
+        setGeneratedImage(null);
+        setPrompt('');
+    } catch(err) {
+        setSavingError(err instanceof Error ? err.message : 'Failed to save visualization.');
+    } finally {
+        setSaving(false);
     }
   };
 
@@ -106,11 +127,19 @@ const CharacterDetail = () => {
 
           {generating && <Loader message="AI is creating..." />}
           {generationError && <div className="mt-4"><ErrorDisplay message={generationError} /></div>}
+          {savingError && <div className="mt-4"><ErrorDisplay message={savingError} /></div>}
           
           {generatedImage && (
             <div className="mt-6">
               <h3 className="text-xl font-semibold mb-3">Generated Image:</h3>
               <img src={generatedImage} alt="AI Generated Visualization" className="w-full rounded-lg shadow-md" />
+              <button
+                onClick={handleSaveVisualization}
+                disabled={saving || generating || !generatedImage}
+                className="mt-4 w-full py-2.5 px-4 border border-transparent rounded-md shadow-sm text-md font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 focus:ring-offset-gray-900 transition-all"
+              >
+                {saving ? 'Saving...' : 'Save Visualization'}
+              </button>
             </div>
           )}
         </div>
