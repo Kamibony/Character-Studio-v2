@@ -7,16 +7,14 @@ backend:
   root: backend
   # Príkaz na spustenie servera po builde
   run: npm run start
-  # ID backendu (z tvojho screenshotu image_9bf070.png)
+  # ID backendu (z tvojho screenshotu image_9cbb49.png)
   id: "backend-firebase"
 
 # Definuje adresár, kde sa nachádza statický frontend
 publicDir: frontend/dist
 
-# --- KĽÚČOVÁ ZMENA ---
-# Hovoríme App Hostingu, aby nasadil obsah
-# na tvoj existujúci "Firebase Hosting" site.
-site: "character-studio-comics"
+# --- ODSTRÁNILI SME RIADOK 'site: "character-studio-comics"' ---
+# Týmto sa všetko nasadí na predvolenú App Hosting URL.
 
 # Pravidlá smerovania
 rewrites:
@@ -26,6 +24,7 @@ rewrites:
       # ID backendu sa musí zhodovať s tým, čo je hore
       id: "backend-firebase"
 
-  # Všetky ostatné požiadavky pošli na index.html (pre React Router)
+  # Všetky ostatné požiadavky (vrátane GET /) pošli na index.html
+  # Toto je kľúčové pre fungovanie tvojej React aplikácie.
   - source: "/**"
     destination: "/index.html"
