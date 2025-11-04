@@ -1,44 +1,57 @@
-// FIX 1: Importuje 'express' ako defaultnú hodnotu A ZÁROVEŇ aj typy.Vynuteny deploy 3.
 import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import admin from 'firebase-admin';
-import { GoogleGenAI, Type, Modality } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+import { AiplatformServiceClient, protos } from '@google-cloud/aiplatform';
 
-// Load environment variables from .env file
+// --- Konfigurácia ---
 dotenv.config();
+const PROJECT_ID = 'character-studio-comics';
+const LOCATION = 'us-central1'; // Dôležitá lokácia pre Vertex AI
+const BUCKET_NAME = 'character-studio-comics.appspot.com';
 
-// --- Secret Manager ---
+// --- Klienti ---
 const secretManagerClient = new SecretManagerServiceClient();
-let ai: GoogleGenAI;
+const aiPlatformClient = new AiplatformServiceClient({
+  apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
+});
+let ai: GoogleGenAI; // Pre štandardné Gemini volania
 
+// --- Inicializácia Firebase ---
+admin.initializeApp();
+const db = admin.firestore();
+const storage = admin.storage();
+const bucket = storage.bucket(BUCKET_NAME);
+
+// --- Načítanie Gemini API Kľúča (pre simuláciu) ---
 async function accessSecretVersion() {
-  const name = 'projects/character-studio-comics/secrets/gemini-api-key/versions/latest';
+  const name = `projects/${PROJECT_ID}/secrets/gemini-api-key/versions/latest`;
   try {
     const [version] = await secretManagerClient.accessSecretVersion({ name });
     const payload = version.payload?.data?.toString();
-    if (!payload) {
-      throw new Error('Secret payload is empty');
-    }
+    if (!payload) throw new Error('Secret payload is empty');
     return payload;
   } catch (error) {
     console.error('Error accessing secret from Secret Manager:', error);
-    process.exit(1); // Exit if the secret cannot be accessed
+    process.exit(1);
   }
 }
 
-// Load environment variables from .env file
-dotenv.config();
+async function initializeGenAI() {
+  const apiKey = await accessSecretVersion();
+  ai = new GoogleGenAI({ apiKey });
+  console.log('Successfully initialized Google GenAI client.');
+}
 
-// --- DIAGNOSTIC LOG ---
-// Log the test variable to check if env vars from apphosting.yaml are loaded.
-console.log(`TEST_VAR value from apphosting.yaml is: "${process.env.TEST_VAR}"`);
-// --- END DIAGNOSTIC LOG ---
+// --- Express Aplikácia ---
+const app = express();
+app.use(cors({ origin: true }));
+app.use(express.json({ limit: '25mb' })); // Zvýšený limit pre viac obrázkov
 
-// Standard way to add properties to the request object in Express with TypeScript.
 declare global {
   namespace Express {
     interface Request {
@@ -47,28 +60,11 @@ declare global {
   }
 }
 
-// Initialize Firebase Admin SDK
-admin.initializeApp();
-const db = admin.firestore();
-const storage = admin.storage();
-const bucket = storage.bucket('character-studio-comics.appspot.com');
-
-// Initialize Google GenAI
-async function initializeGenAI() {
-  const apiKey = await accessSecretVersion();
-  ai = new GoogleGenAI({ apiKey });
-  console.log('Successfully initialized Google GenAI client.');
-}
-
-const app = express();
-app.use(cors({ origin: true }));
-app.use(express.json({ limit: '10mb' }));
-
-// Auth Middleware
-// FIX 1: Používa priamo importované typy (Request, Response, NextFunction) bez prefixu 'express.'
+// --- Auth Middleware ---
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  if (process.env.FIREBASE_AUTH_EMULATOR_HOST === "true") {
-    req.user = { uid: "test-user" } as admin.auth.DecodedIdToken;
+  // Bypass pre lokálny test (môžeš ho odstrániť pre produkciu)
+  if (process.env.NODE_ENV === 'development') {
+    req.user = { uid: "dev-test-user" } as admin.auth.DecodedIdToken;
     return next();
   }
 
@@ -87,31 +83,103 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
   }
 };
 
-// --- API Endpoints ---
+// --- API Endpoints Fázy 1 ---
 
-// FIX 1: Používa priamo importované typy
-app.post('/getCharacterLibrary', authMiddleware, async (req: Request, res: Response) => {
+/**
+ * Endpoint na spustenie trénovacieho jobu pre novú postavu.
+ * Prijme pole base64 obrázkov a meno postavy.
+ */
+app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
-  if (!uid) return res.status(400).send('User ID not found.');
+  const { images, characterName } = req.body; // images je pole base64 stringov
+
+  if (!uid || !images || !Array.isArray(images) || images.length < 5 || !characterName) {
+    return res.status(400).send('Missing data. Potrebných je minimálne 5 obrázkov a meno postavy.');
+  }
+
+  const characterId = uuidv4();
+  const characterRef = db.collection('trainedCharacters').doc(characterId);
+  const trainingDataDir = `training-data/${uid}/${characterId}`;
+  
+  console.log(`[${characterId}] Starting training for ${characterName} for user ${uid}`);
 
   try {
-    const snapshot = await db.collection('characters').where('userId', '==', uid).orderBy('createdAt', 'desc').get();
-    const characters = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.status(200).json(characters);
+    // Krok 1: Vytvoríme záznam vo Firestore
+    await characterRef.set({
+      userId: uid,
+      characterName: characterName,
+      status: 'uploading',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      imageCount: images.length,
+      visualizations: [], // Pripravíme pole pre uložené obrázky
+    });
+
+    // Krok 2: Nahráme všetky trénovacie obrázky do GCS
+    let thumbnailUrl = '';
+    const uploadPromises = images.map(async (base64Image: string, index: number) => {
+      const parts = base64Image.split(',');
+      const data = parts[1];
+      if (!data) throw new Error(`Invalid base64 string for image ${index}`);
+      
+      const imageBuffer = Buffer.from(data, 'base64');
+      const filePath = `${trainingDataDir}/image_${index}.jpg`;
+      const file = bucket.file(filePath);
+      await file.save(imageBuffer, { contentType: 'image/jpeg' });
+      
+      if (index === 0) {
+        // Uložíme prvý obrázok ako thumbnail
+        await file.makePublic();
+        thumbnailUrl = file.publicUrl();
+      }
+    });
+    await Promise.all(uploadPromises);
+
+    // Krok 3: Aktualizujeme Firestore o thumbnail a stav "training"
+    await characterRef.update({
+      status: 'training',
+      thumbnailUrl: thumbnailUrl,
+    });
+    
+    console.log(`[${characterId}] Upload complete. Starting Vertex AI Job...`);
+
+    // Krok 4: Spustíme Vertex AI trénovací job (SIMULÁCIA)
+    // ---
+    // !!! TOTO JE SIMULÁCIA. Spustenie reálneho jobu vyžaduje zložitú
+    // definíciu PipelineJob a Template z Google Cloud.
+    // Pre reálnu implementáciu je potrebné nahradiť túto simuláciu
+    // skutočným volaním `aiPlatformClient.createPipelineJob` 
+    // s odkazom na Google Cloud Pipeline šablónu pre "Style Tuning".
+    // ---
+    console.log(`[${characterId}] SIMULATION: Starting 30-second fake training...`);
+    setTimeout(async () => {
+      // Toto je ID, ktoré by vrátil Vertex AI po dokončení tréningu
+      const trainedModelEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/endpoints/fake-endpoint-${characterId}`;
+      await characterRef.update({
+        status: 'ready',
+        modelEndpointId: trainedModelEndpoint // Uložíme (falošné) ID endpointu modelu
+      });
+      console.log(`[${characterId}] SIMULATION: Training finished.`);
+    }, 30000); // 30 sekúnd
+
+    res.status(202).json({ id: characterId, status: 'training', name: characterName });
+
   } catch (error) {
-    console.error('Error getting character library:', error);
-    res.status(500).send('Internal Server Error');
+    console.error(`[${characterId}] Error starting character training:`, error);
+    await characterRef.delete().catch(); // Cleanup
+    res.status(500).send('Failed to start training job.');
   }
 });
 
-// FIX 1: Používa priamo importované typy
-app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response) => {
+/**
+ * Načíta detaily pre jednu natrénovanú postavu.
+ */
+app.post('/getTrainedCharacterById', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
   const { characterId } = req.body;
   if (!uid || !characterId) return res.status(400).send('User ID or Character ID missing.');
 
   try {
-    const docRef = db.collection('characters').doc(characterId);
+    const docRef = db.collection('trainedCharacters').doc(characterId);
     const doc = await docRef.get();
     if (!doc.exists) {
       return res.status(404).send('Character not found.');
@@ -127,180 +195,65 @@ app.post('/getCharacterById', authMiddleware, async (req: Request, res: Response
   }
 });
 
-// FIX 1: Používa priamo importované typy
-app.post('/createCharacterPair', authMiddleware, async (req: Request, res: Response) => {
+/**
+ * Vygeneruje obrázok na základe natrénovaného modelu.
+ */
+app.post('/generateImageFromTrainedCharacter', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
-    const { charA, charB } = req.body; // base64 strings
+    const { modelEndpointId, prompt } = req.body; // Používame ID endpointu z 'trainedCharacters'
+    if (!uid || !modelEndpointId || !prompt) return res.status(400).send('Missing required data.');
 
-    if (!uid || !charA || !charB) {
-        return res.status(400).send('Missing required data.');
-    }
+    console.log(`Generating image for model ${modelEndpointId} with prompt: ${prompt}`);
 
-    const processCharacter = async (base64Image: string) => {
-        const parts = base64Image.split(',');
-        const header = parts[0];
-        const data = parts[1];
-
-        if (!header || !data) {
-            throw new Error('Invalid base64 string format.');
-        }
-
-        // FIX 4: Refactoring MIME type extraction to satisfy TypeScript's type checker.
-        const mimeType = header.split(';')[0]?.split(':')[1];
-
-        if (!mimeType) {
-            throw new Error('Could not determine mime type from base64 string.');
-        }
-
-        const imagePart = {
-            inlineData: { data, mimeType }
-        };
-
+    try {
+        // ---
+        // !!! TOTO JE TIEŽ SIMULÁCIA !!!
+        // Reálne volanie Vertex AI na generovanie s "adapterom" (tuned model)
+        // používa `aiPlatformClient.predict` a vyžaduje nasadenie modelu na endpoint.
+        // ---
+        
+        /*
+        // --- PRÍKLAD REÁLNEHO KÓDU ---
+        const [response] = await aiPlatformClient.predict({
+            endpoint: modelEndpointId, // Plná cesta k endpointu
+            instances: [{ "prompt": prompt }],
+            parameters: { "sampleCount": 1 },
+        });
+        
+        const base64Image = response.predictions[0].bytesBase64Encoded;
+        if (!base64Image) throw new Error('No image generated');
+        res.status(200).json({ base64Image: base64Image });
+        // --- Koniec reálneho kódu ---
+        */
+        
+        // --- SIMULÁCIA (použijeme Gemini na vygenerovanie *nejakého* obrázku) ---
+        const textPart = { text: `(SIMULÁCIA) comic book style, ${prompt}` };
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: { parts: [imagePart, { text: "Analyze this character image and describe it. Provide a creative name, a short compelling description, and 5-7 relevant keywords." }] },
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        characterName: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        keywords: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    },
-                    required: ['characterName', 'description', 'keywords']
-                }
-            }
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [textPart] },
+            config: { responseModalities: [Modality.IMAGE] }
         });
         
-        // FIX 3: Pridaná kontrola, či `response.text` existuje, aby sa predišlo chybe TS2345
-        const responseText = response.text;
-        if (typeof responseText !== 'string') {
-            console.error('Gemini response is missing text body:', response);
-            throw new Error('AI response was empty or invalid.');
+        const generatedImagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (!generatedImagePart || !generatedImagePart.inlineData) {
+            throw new Error('No image was generated by the model.');
         }
+        const newImageBase64 = generatedImagePart.inlineData.data;
+        res.status(200).json({ base64Image: newImageBase64 });
+        // --- Koniec simulácie ---
 
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error('Failed to parse Gemini response as JSON:', responseText);
-            throw new Error('AI response was not valid JSON.');
-        }
-
-        const characterId = uuidv4();
-        const filePath = `uploads/${uid}/${characterId}.jpg`;
-        const imageBuffer = Buffer.from(data, 'base64');
-        
-        const file = bucket.file(filePath);
-        await file.save(imageBuffer, { contentType: 'image/jpeg' });
-        await file.makePublic();
-        const imageUrl = file.publicUrl();
-
-        const characterData = {
-            ...result,
-            userId: uid,
-            imageUrl,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        };
-
-        await db.collection('characters').doc(characterId).set(characterData);
-        return { id: characterId, ...characterData };
-    };
-
-    let resultA: { id: string } | null = null;
-    try {
-        resultA = await processCharacter(charA);
-        const resultB = await processCharacter(charB);
-        res.status(201).json([resultA, resultB]);
-    } catch (error) {
-        console.error('Error creating character pair:', error);
-        
-        if (resultA) {
-            try {
-                console.log(`Cleaning up character ${resultA.id} due to failed pair creation.`);
-                const filePath = `uploads/${uid}/${resultA.id}.jpg`;
-                await db.collection('characters').doc(resultA.id).delete();
-                await bucket.file(filePath).delete();
-                console.log(`Cleanup successful for character ${resultA.id}.`);
-            } catch (cleanupError) {
-                console.error(`CRITICAL: Failed to cleanup character ${resultA.id}. Manual cleanup required.`, cleanupError);
-            }
-        }
-        res.status(500).send('Internal Server Error while creating characters.');
-    }
-});
-
-const downloadImageAsBase64 = (url: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        https.get(url, (response) => {
-            const chunks: Uint8Array[] = [];
-            response.on('data', (chunk) => chunks.push(chunk));
-            response.on('end', () => {
-                const buffer = Buffer.concat(chunks);
-                resolve(buffer.toString('base64'));
-            });
-        }).on('error', (err) => {
-            reject(`Failed to download image: ${err.message}`);
-        });
-    });
-};
-
-// FIX 1: Používa priamo importované typy
-app.post('/generateCharacterVisualization', authMiddleware, async (req: Request, res: Response) => {
-    const uid = req.user?.uid;
-    const { characterId, prompt } = req.body;
-    if (!uid || !characterId || !prompt) return res.status(400).send('Missing required data.');
-
-    try {
-        const docRef = db.collection('characters').doc(characterId);
-        const doc = await docRef.get();
-
-        if (!doc.exists) {
-            return res.status(404).send('Character not found.');
-        }
-
-        const character = doc.data();
-
-        if (character?.userId !== uid) {
-            return res.status(403).send('Forbidden: You do not own this character.');
-        }
-
-        // Kontrola, či character a character.imageUrl existujú
-        if (character && typeof character.imageUrl === 'string') {
-            
-            // FIX 2: Pridané `as string` na vyriešenie chyby TS2345
-            const base64Image = await downloadImageAsBase64(character.imageUrl as string);
-        
-            const imagePart = {
-              inlineData: { data: base64Image, mimeType: 'image/jpeg' }
-            };
-            const textPart = { text: prompt };
-    
-            const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash-image',
-              contents: { parts: [imagePart, textPart] },
-              config: { responseModalities: [Modality.IMAGE] }
-            });
-            
-            const generatedImagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-            if (!generatedImagePart || !generatedImagePart.inlineData) {
-                throw new Error('No image was generated by the model.');
-            }
-    
-            const newImageBase64 = generatedImagePart.inlineData.data;
-            res.status(200).json({ base64Image: newImageBase64 });
-        } else {
-            return res.status(500).send('Character data is invalid or missing an image URL.');
-        }
     } catch (error) {
         console.error('Error generating visualization:', error);
         res.status(500).send('Internal Server Error');
     }
 });
 
+/**
+ * Uloží vygenerovanú vizualizáciu (z Fázy 1) do databázy.
+ */
 app.post('/saveVisualization', authMiddleware, async (req: Request, res: Response) => {
     const uid = req.user?.uid;
+    // characterId je teraz ID 'trainedCharacters' dokumentu
     const { characterId, prompt, base64Image } = req.body;
 
     if (!uid || !characterId || !prompt || !base64Image) {
@@ -308,13 +261,12 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
     }
 
     try {
-        const docRef = db.collection('characters').doc(characterId);
+        const docRef = db.collection('trainedCharacters').doc(characterId);
         const doc = await docRef.get();
 
         if (!doc.exists) {
             return res.status(404).send('Character not found.');
         }
-
         const character = doc.data();
         if (character?.userId !== uid) {
             return res.status(403).send('Forbidden: You do not own this character.');
@@ -323,6 +275,7 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
         const base64Data = base64Image.replace(/^data:image\/png;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, 'base64');
         const newImageId = uuidv4();
+        // Ukladáme do novej cesty
         const filePath = `visualizations/${uid}/${characterId}/${newImageId}.jpg`;
 
         const file = bucket.file(filePath);
@@ -331,11 +284,13 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
         const publicUrl = file.publicUrl();
 
         const newVisualization = {
+            id: newImageId,
             imageUrl: publicUrl,
             prompt: prompt,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         };
 
+        // Pridáme do poľa 'visualizations' v 'trainedCharacters' dokumente
         await docRef.update({
             visualizations: admin.firestore.FieldValue.arrayUnion(newVisualization)
         });
@@ -348,9 +303,8 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
     }
 });
 
+// --- Spustenie servera ---
 const PORT = Number(process.env.PORT) || 8080;
-
-// Start the server after GenAI client is initialized
 initializeGenAI().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
