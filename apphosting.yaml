@@ -1,11 +1,6 @@
 build: npm run build
 
-run:
-  - command: |
-      mkdir public
-      mv frontend/dist/* public
-
-publicDir: public
+publicDir: backend/public
 
 backend:
   id: "backend-firebase"
