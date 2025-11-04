@@ -30,3 +30,4 @@ export const getCharacterLibrary = () => callApi('/getCharacterLibrary', {});
 export const getCharacterById = (characterId: string) => callApi('/getCharacterById', { characterId });
 export const createCharacterPair = (charA: string, charB: string) => callApi('/createCharacterPair', { charA, charB });
 export const generateCharacterVisualization = (characterId: string, prompt: string) => callApi('/generateCharacterVisualization', { characterId, prompt });
+export const saveVisualization = (characterId: string, prompt: string, base64Image: string) => callApi('/saveVisualization', { characterId, prompt, base64Image });

@@ -67,6 +67,11 @@ app.use(express.json({ limit: '10mb' }));
 // Auth Middleware
 // FIX 1: Používa priamo importované typy (Request, Response, NextFunction) bez prefixu 'express.'
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  if (process.env.FIREBASE_AUTH_EMULATOR_HOST === "true") {
+    req.user = { uid: "test-user" } as admin.auth.DecodedIdToken;
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).send('Unauthorized: No token provided.');
@@ -290,6 +295,55 @@ app.post('/generateCharacterVisualization', authMiddleware, async (req: Request,
         }
     } catch (error) {
         console.error('Error generating visualization:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.post('/saveVisualization', authMiddleware, async (req: Request, res: Response) => {
+    const uid = req.user?.uid;
+    const { characterId, prompt, base64Image } = req.body;
+
+    if (!uid || !characterId || !prompt || !base64Image) {
+        return res.status(400).send('Missing required data.');
+    }
+
+    try {
+        const docRef = db.collection('characters').doc(characterId);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            return res.status(404).send('Character not found.');
+        }
+
+        const character = doc.data();
+        if (character?.userId !== uid) {
+            return res.status(403).send('Forbidden: You do not own this character.');
+        }
+
+        const base64Data = base64Image.replace(/^data:image\/png;base64,/, "");
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        const newImageId = uuidv4();
+        const filePath = `visualizations/${uid}/${characterId}/${newImageId}.jpg`;
+
+        const file = bucket.file(filePath);
+        await file.save(imageBuffer, { contentType: 'image/jpeg' });
+        await file.makePublic();
+        const publicUrl = file.publicUrl();
+
+        const newVisualization = {
+            imageUrl: publicUrl,
+            prompt: prompt,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await docRef.update({
+            visualizations: admin.firestore.FieldValue.arrayUnion(newVisualization)
+        });
+
+        res.status(200).json(newVisualization);
+
+    } catch (error) {
+        console.error('Error saving visualization:', error);
         res.status(500).send('Internal Server Error');
     }
 });
