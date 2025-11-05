@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'; // PRIDANÉ
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  indexedDBLocalPersistence, // <-- ZMENENÉ
+  setPersistence, 
+  connectAuthEmulator 
+} from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 // Presná Firebase konfigurácia pre projekt 'character-studio-comics'
 const firebaseConfig = {
@@ -24,16 +30,16 @@ if (!import.meta.env.DEV) {
 // Inicializácia Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app); // PRIDANÉ
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   connectAuthEmulator(auth, "http://localhost:9099");
-  connectFirestoreEmulator(db, 'localhost', 8080); // Príklad pre Firestore
+  connectFirestoreEmulator(db, 'localhost', 8080);
 }
 
-// Nastavenie perzistencie na localStorage
-setPersistence(auth, browserLocalPersistence)
+// Nastavenie perzistencie na IndexedDB (robustnejšie ako localStorage)
+setPersistence(auth, indexedDBLocalPersistence) // <-- ZMENENÉ
   .catch((error) => {
     console.error("Firebase Persistence Error: Could not set persistence.", error);
   });
@@ -43,5 +49,5 @@ export {
   auth, 
   googleProvider,
   app,
-  db // PRIDANÉ
+  db
 };
