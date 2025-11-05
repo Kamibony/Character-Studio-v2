@@ -271,11 +271,12 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
     }
 });
 
-// --- VRÁTENÝ SPÄŤ BLOK ÚPLNE NA KONIEC ---
+// --- ZMENENÝ BLOK (OPRAVA LOGIN LOOPU) ---
 // Toto je SPA (Single Page App) fallback.
-// Akákoľvek GET požiadavka, ktorá nie je API, pošle späť index.html,
-// aby sa mohol načítať React Router.
-app.get('*', (req, res) => {
+// Pošle späť index.html pre akúkoľvek GET požiadavku, KTORÁ NIE JE API
+// a ZÁROVEŇ NIE JE REZERVOVANÁ FIREBASE CESTA (/__/).
+// Používame regulárny výraz, ktorý vylúči cesty začínajúce na /__/
+app.get(/^(?!\/__).*/, (req, res) => {
   res.sendFile(path.join(staticFilesPath, 'index.html'));
 });
 // ------------------------------------
