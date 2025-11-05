@@ -167,7 +167,7 @@ app.post('/getTrainedCharacterById', authMiddleware, async (req: Request, res: R
     const docRef = db.collection('trainedCharacters').doc(characterId);
     const doc = await docRef.get();
     if (!doc.exists) {
-      return res.status(4Môžem ti pomôcť s niečím iným?4).send('Character not found.');
+      return res.status(404).send('Character not found.');
     }
     const character = doc.data();
     if (character?.userId !== uid) {
