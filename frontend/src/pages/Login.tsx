@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Zmenené importy - pridávame signInWithPopup a UserCredential
+// Importujeme UserCredential, aby sme opravili TypeScript chybu
 import { signInWithPopup, getRedirectResult, UserCredential } from 'firebase/auth'; 
 import { auth, googleProvider } from '../services/firebase';
 import { useAuth } from '../App';
@@ -11,58 +11,66 @@ const Login = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   
-  // Refaktoring stavov (ako si navrhoval):
-  // 1. Sleduje, či sme už skontrolovali počiatočný redirect
+  // Tento stav sleduje, či sme už skontrolovali počiatočný redirect
   const [redirectCheckDone, setRedirectCheckDone] = useState(false);
-  // 2. Sleduje, či používateľ práve klikol na tlačidlo
+  // Tento stav sleduje, či používateľ práve klikol na tlačidlo
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
-    // Táto logika kontroluje, či sme sa nevrátili z redirectu (napr. na mobile)
-    if (!loading && !user) {
-      getRedirectResult(auth)
-        .then((result: UserCredential | null) => {
-          if (result) {
-            // Úspech z redirectu, premenná 'result' je použitá
-            navigate('/');
-          }
-        })
-        .catch((err) => {
-          console.error("Authentication error (getRedirectResult):", err);
-          setError("Failed to process sign-in. Please try again.");
-        })
-        .finally(() => {
-          // Označíme, že počiatočná kontrola je hotová
-          setRedirectCheckDone(true);
-        });
-    } else if (!loading && user) {
-      // Používateľ je už prihlásený, ideme preč
-      navigate('/');
-      setRedirectCheckDone(true);
+    // TENTO BLOK JE TERAZ JEDINÝ ZDROJ PRAVDY PRE PRESMEROVANIE
+    
+    if (!loading) {
+      if (user) {
+        // Používateľ je úspešne prihlásený! Presmerujeme ho na hlavnú stránku.
+        navigate('/');
+      } else {
+        // Používateľ nie je prihlásený. Skontrolujeme, či neprišiel z redirectu (mobil).
+        getRedirectResult(auth)
+          .then((result: UserCredential | null) => {
+            if (result) {
+              // Ak áno, 'user' stav sa aktualizuje v App.tsx
+              // a tento useEffect sa spustí znova a prejde hornou `if (user)` vetvou.
+              // Nemusíme tu robiť nič.
+            }
+          })
+          .catch((err) => {
+            console.error("Authentication error (getRedirectResult):", err);
+            setError("Failed to process sign-in. Please try again.");
+          })
+          .finally(() => {
+            // V každom prípade (ak nie je prihlásený), označíme kontrolu za hotovú.
+            setRedirectCheckDone(true);
+          });
+      }
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate]); // Tento hook sa spustí vždy, keď sa zmení `user` alebo `loading`
 
-  // Používame signInWithPopup na vyriešenie problému so zaseknutím
+  
   const handleSignIn = () => {
-    setIsSigningIn(true); // Zobrazí loader pre tlačidlo
+    setIsSigningIn(true);
     setError(null);
     
     signInWithPopup(auth, googleProvider)
       .then((result: UserCredential) => {
-        // ÚSPECH: Premenná 'result' je teraz použitá, chyba TS6133 je opravená
-        if (result.user) {
-          navigate('/');
+        // ÚSPECH!
+        // *** ODSTRÁNILI SME ODTIAĽTO navigate('/') ***
+        // O presmerovanie sa postará `useEffect` vyššie,
+        // ktorý počká, kým `onAuthStateChanged` v App.tsx
+        // aktualizuje 'user' v kontexte.
+        
+        // Tento if blok tu je len na to, aby sme použili premennú 'result'
+        // a opravili TypeScript chybu (TS6133)
+        if (!result.user) {
+          throw new Error("Sign in successful but no user returned.");
         }
       })
       .catch((err) => {
         console.error("Popup Sign-in error:", err);
-        // Nezobrazujeme chybu, ak používateľ len zavrel okno
         if (err.code !== 'auth/popup-closed-by-user') {
           setError("Could not complete sign-in. Please try again.");
         }
       })
       .finally(() => {
-        // Ukončíme loading tlačidla
         setIsSigningIn(false);
       });
   };
@@ -82,7 +90,6 @@ const Login = () => {
         {error && <p className="text-red-400 text-center">{error}</p>}
         <button
           onClick={handleSignIn}
-          // Tlačidlo je zablokované, iba ak sa reálne prihlasuje cez popup
           disabled={isSigningIn} 
           className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 focus:ring-offset-gray-800 transition-transform transform hover:scale-105 disabled:bg-gray-600"
         >
