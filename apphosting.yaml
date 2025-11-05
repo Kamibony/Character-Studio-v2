@@ -1,21 +1,17 @@
 build: npm run build
 
-# Povieme App Hostingu, kde je náš statický frontend
-publicDir: backend/public
-
 backend:
   id: "backend-firebase"
   root: backend
   run: npm run start
 
 rewrites:
-  # 1. PRAVIDLO: Všetky známe API cesty pošli na backend
-  # (Zoznam je z backend/src/index.ts a frontend/vite.config.ts)
-  - source: "/(startCharacterTraining|getTrainedCharacterById|generateImageFromTrainedCharacter|saveVisualization|getCharacterLibrary|getCharacterById|createCharacterPair|generateCharacterVisualization)"
+  # 1. PRAVIDLO: Všetky cesty, ktoré začínajú na /__/ (Firebase magic paths),
+  # nechaj spracovať priamo App Hostingom (tým, že neurčíme backend).
+  - source: "/__/.*"
+
+  # 2. PRAVIDLO: Všetky ostatné požiadavky ("/**") pošli na tvoj Express backend.
+  # Ten sa už postará o API aj o servírovanie React aplikácie.
+  - source: "/**"
     backend:
       id: "backend-firebase"
-
-  # 2. PRAVIDLO: Všetko ostatné ber ako SPA (React) a pošli na index.html
-  # Toto je kľúčové pre React Router.
-  - source: "/**"
-    destination: "/index.html"
