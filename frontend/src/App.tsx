@@ -1,7 +1,7 @@
-
 import { useState, useEffect, createContext, useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { onAuthStateChanged, User } from 'firebase/auth';
+// ZMENA: Importujeme getRedirectResult
+import { onAuthStateChanged, User, getRedirectResult } from 'firebase/auth';
 import { auth } from './services/firebase';
 
 import Header from './components/Header';
@@ -25,13 +25,27 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- ZMENENÝ BLOK ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    // 1. Najprv spracujeme výsledok presmerovania (ak nejaký je)
+    getRedirectResult(auth)
+      .catch((error) => {
+        // Spracujeme chybu, ak by nastala pri presmerovaní
+        console.error("Error processing redirect result:", error);
+      })
+      .finally(() => {
+        // 2. AŽ POTOM nastavíme hlavný listener
+        // Ten sa spustí buď s používateľom (ak redirect uspel) alebo s null
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+          setUser(currentUser);
+          setLoading(false);
+        });
+        
+        // Vrátim funkciu na odhlásenie listenera
+        return () => unsubscribe();
+      });
   }, []);
+  // --- KONIEC ZMENENÉHO BLOKU ---
 
   if (loading) {
     return <Loader fullScreen={true} />;
