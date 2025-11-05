@@ -1,15 +1,16 @@
 build: npm run build
 
-# publicDir: backend/public  <-- TENTO RIADOK ZMAŽTE
-
 backend:
   id: "backend-firebase"
   root: backend
   run: npm run start
 
 rewrites:
-  # Všetky cesty presmeruj na backend,
-  # ktorý následne obslúži SPA (React)
+  # 1. PRAVIDLO: Nechaj Firebase, aby si obslúžil svoje vlastné špeciálne cesty
+  # Tým, že tu nie je 'backend', App Hosting to obslúži sám
+  - source: "/__/.*"
+
+  # 2. PRAVIDLO: Všetko ostatné presmeruj na backend (pre React SPA)
   - source: "/**"
     backend:
       id: "backend-firebase"
