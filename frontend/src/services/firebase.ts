@@ -12,6 +12,15 @@ const firebaseConfig = {
   appId: "1:673014807195:web:979046c375fe0b7e26e43e"
 };
 
+// --- SYSTÉMOVÁ OPRAVA PRE LOGIN LOOP ---
+// Ak bežíme v produkcii (nie 'npm run dev'),
+// dynamicky nastavíme authDomain na aktuálnu doménu, kde je aplikácia nasadená.
+// Tým sa zabezpečí, že sa OAuth cookies nastavia pre správnu doménu.
+if (!import.meta.env.DEV) {
+  firebaseConfig.authDomain = window.location.hostname;
+}
+// ------------------------------------
+
 // Inicializácia Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
