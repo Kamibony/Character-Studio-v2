@@ -12,7 +12,8 @@ rewrites:
     backend:
       id: "backend-firebase"
 
+# Odstránili sme blok staticContent.rewrites,
+# pretože obsluhu 'index.html' teraz plne manažuje
+# tvoj Express server v backend/src/index.ts.
+# publicDir sa stále používa na obsluhu assetov (JS/CSS/obrázky).
 staticContent:
-  rewrites:
-    - source: "/**"
-      destination: "/index.html"
