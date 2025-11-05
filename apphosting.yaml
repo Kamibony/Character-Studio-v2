@@ -1,6 +1,6 @@
 build: npm run build
 
-publicDir: backend/public
+# publicDir: backend/public  <-- TENTO RIADOK ZMAŽTE
 
 backend:
   id: "backend-firebase"
@@ -13,6 +13,3 @@ rewrites:
   - source: "/**"
     backend:
       id: "backend-firebase"
-
-# staticContent už nie je potrebný,
-# pretože backend obsluhuje všetky cesty
