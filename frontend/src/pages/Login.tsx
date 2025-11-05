@@ -9,38 +9,47 @@ const Login = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [redirectCheckDone, setRedirectCheckDone] = useState(false);
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        navigate('/');
-      } else {
-        getRedirectResult(auth)
-          .then((result) => {
-            if (result) {
-              navigate('/');
-            }
-          })
-          .catch((err) => {
-            console.error("Authentication error:", err);
-            setError("Failed to sign in. Please try again.");
-          }).finally(() => {
-            setIsAuthenticating(false);
-          });
-      }
+    if (loading) return;
+
+    if (user) {
+      navigate('/');
+      return;
     }
-  }, [user, loading, navigate]);
+
+    // Only run the redirect check once
+    if (!redirectCheckDone) {
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result) {
+            // This will trigger the onAuthStateChanged listener in App.tsx,
+            // which will update the user state and cause a redirect.
+            // No need to navigate here.
+          }
+        })
+        .catch((err) => {
+          console.error("Authentication error:", err);
+          setError("Failed to sign in. Please try again.");
+        })
+        .finally(() => {
+          setRedirectCheckDone(true);
+        });
+    }
+  }, [user, loading, navigate, redirectCheckDone]);
 
   const handleSignIn = () => {
-    setIsAuthenticating(true);
-    signInWithRedirect(auth, googleProvider).catch(() => {
-      setError("Could not start sign-in process.");
-      setIsAuthenticating(false);
+    setError(null);
+    signInWithRedirect(auth, googleProvider).catch((err) => {
+      console.error("Sign-in initiation error:", err);
+      setError("Could not start the sign-in process. Please try again.");
     });
   };
 
-  if (loading || isAuthenticating) {
+  // Show a loader while the initial auth state is loading OR
+  // while we are waiting for the redirect result to resolve.
+  if (loading || !redirectCheckDone) {
     return <Loader fullScreen={true} message="Authenticating..." />;
   }
 
