@@ -8,7 +8,7 @@ backend:
 rewrites:
   # 1. PRAVIDLO: Všetky cesty, ktoré začínajú na /__/ (Firebase magic paths),
   # nechaj spracovať priamo App Hostingom (tým, že neurčíme backend).
-  - source: "/__/.*"
+  - source: "/__/**"
 
   # 2. PRAVIDLO: Všetky ostatné požiadavky ("/**") pošli na tvoj Express backend.
   # Ten sa už postará o API aj o servírovanie React aplikácie.
