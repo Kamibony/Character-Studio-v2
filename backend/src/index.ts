@@ -7,7 +7,10 @@ import { v4 as uuidv4 } from 'uuid';
 import https from 'https';
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
-// --- ZMENA: Odstránili sme importy 'path' a 'fileURLToPath' ---
+// --- VRÁTENÉ SPÄŤ: IMPORTY PRE OBSLUHU FRONTENDU ---
+import path from 'path';
+import { fileURLToPath } from 'url';
+// ------------------------------------------
 
 // --- Konfigurácia ---
 dotenv.config();
@@ -15,7 +18,10 @@ const PROJECT_ID = 'character-studio-comics';
 const LOCATION = 'us-central1'; // Dôležitá lokácia pre Vertex AI
 const BUCKET_NAME = 'character-studio-comics.appspot.com';
 
-// --- ZMENA: Odstránili sme __filename a __dirname ---
+// --- VRÁTENÉ SPÄŤ: NÁJDENIE CESTY K SÚBOROM ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// ----------------------------------------
 
 // --- Klienti ---
 const secretManagerClient = new SecretManagerServiceClient();
@@ -52,8 +58,12 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '25mb' })); // Zvýšený limit pre viac obrázkov
 
-// --- ZMENA: Odstránili sme blok 'app.use(express.static(staticFilesPath));' ---
-// App Hosting teraz obsluhuje statické súbory sám.
+// --- VRÁTENÝ SPÄŤ BLOK NA OBSLUHU FRONTENDU ---
+// Toto povie Expressu, aby zobrazil statické súbory (React app) z adresára `public`
+// Po kompilácii bude `index.js` v `dist/`, takže cesta k `public` je `../public`
+const staticFilesPath = path.join(__dirname, '..', 'public');
+app.use(express.static(staticFilesPath));
+// ----------------------------------------
 
 declare global {
   namespace Express {
@@ -261,8 +271,14 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
     }
 });
 
-// --- ZMENA: Odstránili sme 'app.get('*', ...)' ---
-// Toto už nie je potrebné, App Hosting sa postará o SPA fallback.
+// --- VRÁTENÝ SPÄŤ BLOK ÚPLNE NA KONIEC ---
+// Toto je SPA (Single Page App) fallback.
+// Akákoľvek GET požiadavka, ktorá nie je API, pošle späť index.html,
+// aby sa mohol načítať React Router.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(staticFilesPath, 'index.html'));
+});
+// ------------------------------------
 
 // --- Spustenie servera ---
 const PORT = Number(process.env.PORT) || 8080;
