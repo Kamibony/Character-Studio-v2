@@ -10,71 +10,47 @@ const Login = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  
-  // Sleduje, či sme už skontrolovali počiatočný redirect
   const [redirectCheckDone, setRedirectCheckDone] = useState(false);
-  // Sleduje, či používateľ práve klikol na tlačidlo
-  const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
-    // TENTO BLOK JE TERAZ JEDINÝ ZDROJ PRAVDY PRE PRESMEROVANIE
-    
-    if (!loading) {
-      if (user) {
-        // Používateľ je úspešne prihlásený! Presmerujeme ho na hlavnú stránku.
-        navigate('/');
-      } else {
-        // Používateľ nie je prihlásený. Skontrolujeme, či neprišiel z redirectu (mobil).
-        getRedirectResult(auth)
-          .then((result: UserCredential | null) => {
-            if (result) {
-              // Ak áno, 'user' stav sa aktualizuje v App.tsx
-              // a tento useEffect sa spustí znova a prejde hornou `if (user)` vetvou.
-            }
-          })
-          .catch((err) => {
-            console.error("Authentication error (getRedirectResult):", err);
-            setError("Failed to process sign-in. Please try again.");
-          })
-          .finally(() => {
-            // V každom prípade (ak nie je prihlásený), označíme kontrolu za hotovú.
-            setRedirectCheckDone(true);
-          });
-      }
+    if (loading) return;
+
+    if (user) {
+      navigate('/');
+      return;
     }
-  }, [user, loading, navigate]); // Tento hook sa spustí vždy, keď sa zmení `user` alebo `loading`
+
+    // Only run the redirect check once
+    if (!redirectCheckDone) {
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result) {
+            // This will trigger the onAuthStateChanged listener in App.tsx,
+            // which will update the user state and cause a redirect.
+            // No need to navigate here.
+          }
+        })
+        .catch((err) => {
+          console.error("Authentication error:", err);
+          setError("Failed to sign in. Please try again.");
+        })
+        .finally(() => {
+          setRedirectCheckDone(true);
+        });
+    }
+  }, [user, loading, navigate, redirectCheckDone]);
 
   
   const handleSignIn = () => {
-    setIsSigningIn(true);
     setError(null);
-    
-    signInWithPopup(auth, googleProvider)
-      .then((result: UserCredential) => {
-        // ÚSPECH!
-        // *** ODSTRÁNILI SME ODTIAĽTO navigate('/') ***
-        // O presmerovanie sa postará `useEffect` vyššie,
-        // ktorý počká, kým `onAuthStateChanged` v App.tsx
-        // aktualizuje 'user' v kontexte.
-        
-        // Tento if blok tu je len na to, aby sme použili premennú 'result'
-        // a opravili akékoľvek potenciálne TypeScript chyby (ako TS6133)
-        if (!result.user) {
-          throw new Error("Sign in successful but no user returned.");
-        }
-      })
-      .catch((err) => {
-        console.error("Popup Sign-in error:", err);
-        if (err.code !== 'auth/popup-closed-by-user') {
-          setError("Could not complete sign-in. Please try again.");
-        }
-      })
-      .finally(() => {
-        setIsSigningIn(false);
-      });
+    signInWithRedirect(auth, googleProvider).catch((err) => {
+      console.error("Sign-in initiation error:", err);
+      setError("Could not start the sign-in process. Please try again.");
+    });
   };
-  
-  // Zobrazíme full-screen loader, kým App.tsx načíta stav ALEBO kým my kontrolujeme redirect
+
+  // Show a loader while the initial auth state is loading OR
+  // while we are waiting for the redirect result to resolve.
   if (loading || !redirectCheckDone) {
     return <Loader fullScreen={true} message="Authenticating..." />;
   }
