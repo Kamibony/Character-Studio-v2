@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// ZMENA: Importujeme viac funkcií pre opravu perzistencie
+// ZMENA: Importujeme už iba to, čo naozaj potrebujeme
 import { 
   signInWithRedirect, 
-  getRedirectResult, 
   setPersistence, 
   browserLocalPersistence 
 } from 'firebase/auth';
-import { auth, googleProvider } from '../services/firebase';
+import { auth, googleProvider } from './services/firebase';
 import { useAuth } from '../App';
 import Loader from '../components/Loader';
 
@@ -15,57 +14,44 @@ const Login = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(true);
+  // ZMENA: isAuthenticating môže byť false na začiatku
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  // --- ZMENENÝ BLOK ---
+  // Tento useEffect už len presmeruje preč, ak je používateľ prihlásený.
+  // Všetku logiku zisťovania stavu sme presunuli do App.tsx.
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        navigate('/');
-      } else {
-        getRedirectResult(auth)
-          .then((result) => {
-            // --- TOTO JE ORAVA PRE BUILD ---
-            // Použijeme 'result.user', aby sme uspokojili TS linter (error TS6133)
-            if (result && result.user) {
-              navigate('/');
-            }
-          })
-          .catch((err) => {
-            console.error("Authentication error:", err);
-            setError("Failed to sign in. Please try again.");
-          }).finally(() => {
-            setIsAuthenticating(false);
-          });
-      }
+    if (!loading && user) {
+      navigate('/');
     }
+    
+    // Ak je načítavanie hotové a nie je používateľ,
+    // môžeme bezpečne zobraziť tlačidlo (prestane sa točiť "Authenticating...")
+    if (!loading && !user) {
+      setIsAuthenticating(false);
+    }
+
   }, [user, loading, navigate]);
+  // --- KONIEC ZMENENÉHO BLOKU ---
 
   const handleSignIn = () => {
     setIsAuthenticating(true);
 
-    // --- OPRAVA PRE NOVÝ LOGIN LOOP ---
-    // Musíme ZARUČIŤ, že perzistencia je nastavená PRED spustením redirectu.
-    // Inak sa prihlasovacie údaje po presmerovaní stratia.
+    // Toto je kľúčová oprava perzistencie z minulej správy, ktorú ponecháme
     setPersistence(auth, browserLocalPersistence)
       .then(() => {
-        // Až teraz, keď je perzistencia úspešne nastavená, spustíme prihlásenie
         return signInWithRedirect(auth, googleProvider);
       })
       .catch((err) => {
-        // Vylepšené spracovanie chýb
-        if (err.code === 'auth/operation-not-allowed') {
-           setError("Sign-in method not enabled in Firebase. Please check console.");
-        } else {
-           setError("Could not start sign-in process.");
-           console.error("Sign-in error:", err);
-        }
+        console.error("Sign-in error:", err);
+        setError("Could not start sign-in process.");
         setIsAuthenticating(false);
       });
-    // --- KONIEC OPRAVY ---
   };
 
+  // ZMENA: `loading` (z App.tsx) alebo `isAuthenticating` (lokálny) zobrazí loader
   if (loading || isAuthenticating) {
-    return <Loader fullScreen={true} message="Authenticating..." />;
+    return <Loader fullScreen={true} message={loading ? 'Loading...' : 'Authenticating...'} />;
   }
 
   return (
