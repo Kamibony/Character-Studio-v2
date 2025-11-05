@@ -1,18 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path' // <-- PRIDANÉ
+import path from 'path' // <-- TOTO UŽ MÁTE
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
 
-  // --- PRIDANÝ BLOK ---
+  // --- TÁTO SEKCIA CHÝBA A JE PRÍČINOU PROBLÉMU ---
   build: {
     // Smeruj výstup o úroveň vyššie a do backend/public
     outDir: path.resolve(__dirname, '../backend/public'),
     emptyOutDir: true,
   },
-  // --------------------
+  // --------------------------------------------------
 
   server: {
     proxy: {
