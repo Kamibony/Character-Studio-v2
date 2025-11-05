@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// ZMENA: Importujeme už iba to, čo naozaj potrebujeme
 import { 
   signInWithRedirect, 
   setPersistence, 
   browserLocalPersistence 
 } from 'firebase/auth';
-import { auth, googleProvider } from './services/firebase';
+// --- TOTO JE OPRAVENÝ RIADOK (bola tu zlá cesta './') ---
+import { auth, googleProvider } from '../services/firebase';
+// ---------------------------------------------------
 import { useAuth } from '../App';
 import Loader from '../components/Loader';
 
@@ -14,30 +15,24 @@ const Login = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  // ZMENA: isAuthenticating môže byť false na začiatku
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // --- ZMENENÝ BLOK ---
-  // Tento useEffect už len presmeruje preč, ak je používateľ prihlásený.
-  // Všetku logiku zisťovania stavu sme presunuli do App.tsx.
+  // Tento useEffect už len presmeruje preč, ak je používateľ prihlásený
   useEffect(() => {
     if (!loading && user) {
       navigate('/');
     }
     
-    // Ak je načítavanie hotové a nie je používateľ,
-    // môžeme bezpečne zobraziť tlačidlo (prestane sa točiť "Authenticating...")
     if (!loading && !user) {
       setIsAuthenticating(false);
     }
 
   }, [user, loading, navigate]);
-  // --- KONIEC ZMENENÉHO BLOKU ---
 
   const handleSignIn = () => {
     setIsAuthenticating(true);
 
-    // Toto je kľúčová oprava perzistencie z minulej správy, ktorú ponecháme
+    // Oprava perzistencie (táto bola správna)
     setPersistence(auth, browserLocalPersistence)
       .then(() => {
         return signInWithRedirect(auth, googleProvider);
@@ -49,7 +44,6 @@ const Login = () => {
       });
   };
 
-  // ZMENA: `loading` (z App.tsx) alebo `isAuthenticating` (lokálny) zobrazí loader
   if (loading || isAuthenticating) {
     return <Loader fullScreen={true} message={loading ? 'Loading...' : 'Authenticating...'} />;
   }
