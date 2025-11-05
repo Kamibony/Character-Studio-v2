@@ -27,6 +27,11 @@ if (!import.meta.env.DEV) {
 }
 // ------------------------------------
 
+// --- PRIDANÝ DEBUG LOG ---
+console.log("Firebase config authDomain is set to:", firebaseConfig.authDomain);
+console.log("import.meta.env.DEV:", import.meta.env.DEV);
+// ---------------------------
+
 // Inicializácia Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
