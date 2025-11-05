@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
+// ZMENA: Importujeme viac funkcií pre opravu perzistencie
+import { 
+  signInWithRedirect, 
+  getRedirectResult, 
+  setPersistence, 
+  browserLocalPersistence 
+} from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { useAuth } from '../App';
 import Loader from '../components/Loader';
@@ -36,10 +42,26 @@ const Login = () => {
 
   const handleSignIn = () => {
     setIsAuthenticating(true);
-    signInWithRedirect(auth, googleProvider).catch(() => {
-      setError("Could not start sign-in process.");
-      setIsAuthenticating(false);
-    });
+
+    // --- OPRAVA PRE NOVÝ LOGIN LOOP ---
+    // Musíme ZARUČIŤ, že perzistencia je nastavená PRED spustením redirectu.
+    // Inak sa prihlasovacie údaje po presmerovaní stratia.
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+        // Až teraz, keď je perzistencia úspešne nastavená, spustíme prihlásenie
+        return signInWithRedirect(auth, googleProvider);
+      })
+      .catch((err) => {
+        // Vylepšené spracovanie chýb
+        if (err.code === 'auth/operation-not-allowed') {
+           setError("Sign-in method not enabled in Firebase. Please check console.");
+        } else {
+           setError("Could not start sign-in process.");
+           console.error("Sign-in error:", err);
+        }
+        setIsAuthenticating(false);
+      });
+    // --- KONIEC OPRAVY ---
   };
 
   if (loading || isAuthenticating) {
