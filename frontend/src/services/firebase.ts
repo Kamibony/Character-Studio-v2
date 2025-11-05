@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  indexedDBLocalPersistence, // <-- ZMENENÉ
+  browserLocalPersistence, // <-- VRÁTENÉ SPÄŤ NA TOTO
   setPersistence, 
   connectAuthEmulator 
 } from 'firebase/auth';
@@ -38,8 +38,8 @@ if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   connectFirestoreEmulator(db, 'localhost', 8080);
 }
 
-// Nastavenie perzistencie na IndexedDB (robustnejšie ako localStorage)
-setPersistence(auth, indexedDBLocalPersistence) // <-- ZMENENÉ
+// Nastavenie perzistencie na localStorage (pôvodná metóda)
+setPersistence(auth, browserLocalPersistence) // <-- VRÁTENÉ SPÄŤ NA TOTO
   .catch((error) => {
     console.error("Firebase Persistence Error: Could not set persistence.", error);
   });
