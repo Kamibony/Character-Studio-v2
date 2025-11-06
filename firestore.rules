@@ -9,20 +9,18 @@ allow delete: if false;
     }
     
     // --- ZMENENÝ BLOK ---
-
-    // Pravidlo pre DOTAZY (list) na kolekciu.
-    // Dovolí dotaz (napr. z knižnice), iba ak filtruje podľa prihláseného userId.
-    match /trainedCharacters {
-      allow list: if request.auth != null && request.auth.uid == request.query.where.userId;
-    }
     
     // Nové pravidlá pre 'trainedCharacters' (Fáza 1)
     match /trainedCharacters/{characterId} {
     	// Používateľ môže vytvoriť záznam, ak sa zhoduje jeho UID
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-// Používateľ môže čítať (get) alebo aktualizovať (napr. pridať vizualizáciu)
-      // iba svoje vlastné dokumenty.
+      
+      // Používateľ môže čítať (get) svoj vlastný dokument
 allow read, update: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Používateľ môže prehľadávať (list) kolekciu, ak je prihlásený.
+      // Firestore následne aplikuje vyššie uvedené 'read' pravidlo na výsledky.
+      allow list: if request.auth != null;
       
       allow delete: if false;
     }
