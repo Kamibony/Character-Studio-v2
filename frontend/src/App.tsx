@@ -25,13 +25,15 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- ZMENENÝ BLOK ---
+  // --- ZMENENÝ BLOK (PRIDANÉ LADENIE) ---
   useEffect(() => {
     // 1. Najprv spracujeme výsledok presmerovania (ak nejaký je)
     getRedirectResult(auth)
       .catch((error) => {
         // Spracujeme chybu, ak by nastala pri presmerovaní
-        console.error("Error processing redirect result:", error);
+        // --- TOTO JE PRIDANÝ RIADOK PRE LADENIE ---
+        console.error("Login redirect error:", error.code, error.message);
+        // -----------------------------------------
       })
       .finally(() => {
         // 2. AŽ POTOM nastavíme hlavný listener
@@ -44,7 +46,7 @@ function App() {
         // Vrátim funkciu na odhlásenie listenera
         return () => unsubscribe();
       });
-  }, []);
+  }, []); //
   // --- KONIEC ZMENENÉHO BLOKU ---
 
   if (loading) {
