@@ -56,13 +56,11 @@ async function initializeGenAI() {
 // --- Express Aplikácia ---
 const app = express();
 app.use(cors({ origin: true }));
-// --- ZMENA: Zvýšený limit pre viac obrázkov z 25MB na 50MB ---
-app.use(express.json({ limit: '50mb' })); 
+// --- ZMENA: Odstránený limit, parsujeme bežné JSONy ---
+app.use(express.json()); 
 // ---------------------------------------------------------
 
 // --- VRÁTENÝ SPÄŤ BLOK NA OBSLUHU FRONTENDU ---
-// Toto povie Expressu, aby zobrazil statické súbory (React app) z adresára `public`
-// Po kompilácii bude `index.js` v `dist/`, takže cesta k `public` je `../public`
 const staticFilesPath = path.join(__dirname, '..', 'public');
 app.use(express.static(staticFilesPath));
 // ----------------------------------------
@@ -99,54 +97,70 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
 // --- API Endpoints Fázy 1 ---
 
-app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Response) => {
+/**
+ * NOVÝ ENDPOINT
+ * Generuje podpísanú URL, na ktorú môže klient nahrať súbor.
+ */
+app.post('/getUploadUrl', authMiddleware, async (req: Request, res: Response) => {
   const uid = req.user?.uid;
-  const { images, characterName } = req.body; 
-
-  if (!uid || !images || !Array.isArray(images) || images.length < 5 || !characterName) {
-    return res.status(400).send('Missing data. Potrebných je minimálne 5 obrázkov a meno postavy.');
+  const { characterId, fileName, contentType } = req.body;
+  if (!uid || !characterId || !fileName || !contentType) {
+    return res.status(400).send('Missing required data (characterId, fileName, contentType).');
   }
 
-  const characterId = uuidv4();
+  const filePath = `training-data/${uid}/${characterId}/${fileName}`;
+  const file = bucket.file(filePath);
+
+  try {
+    // Vytvoríme podpísanú URL platnú 15 minút na ZÁPIS (write)
+    const [url] = await file.getSignedUrl({
+      action: 'write',
+      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+      contentType: contentType,
+      version: 'v4',
+    });
+
+    // Vrátime URL na nahrávanie a verejnú URL na čítanie (pre thumbnail)
+    res.status(200).json({ uploadUrl: url, publicUrl: file.publicUrl() });
+  } catch (error) {
+    console.error(`[${characterId}] Error getting signed URL:`, error);
+    res.status(500).send('Failed to get upload URL.');
+  }
+});
+
+
+/**
+ * UPRAVENÝ ENDPOINT
+ * Spustí trénovací proces. Už nepríjma obrázky, iba metadáta.
+ * Predpokladá, že obrázky sú už nahraté v Storage.
+ */
+app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Response) => {
+  const uid = req.user?.uid;
+  // Zmenené: Prijímame ID, imageCount a thumbnailUrl, už nie pole obrázkov
+  const { characterName, characterId, imageCount, thumbnailUrl } = req.body; 
+
+  if (!uid || !characterId || !characterName || !imageCount || imageCount < 5 || !thumbnailUrl) {
+    return res.status(400).send('Missing data. Potrebné je characterId, characterName, imageCount >= 5 a thumbnailUrl.');
+  }
+
   const characterRef = db.collection('trainedCharacters').doc(characterId);
-  const trainingDataDir = `training-data/${uid}/${characterId}`;
   
   console.log(`[${characterId}] Starting training for ${characterName} for user ${uid}`);
 
   try {
+    // Vytvoríme záznam v DB. Obrázky sú už v Storage.
+    // Rovno nastavíme status 'training'.
     await characterRef.set({
       userId: uid,
       characterName: characterName,
-      status: 'uploading',
+      status: 'training', // Začíname rovno trénovať
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      imageCount: images.length,
+      imageCount: imageCount,
+      thumbnailUrl: thumbnailUrl, // URL získaná z klienta
       visualizations: [], 
     });
-
-    let thumbnailUrl = '';
-    const uploadPromises = images.map(async (base64Image: string, index: number) => {
-      const parts = base64Image.split(',');
-      const data = parts[1];
-      if (!data) throw new Error(`Invalid base64 string for image ${index}`);
-      
-      const imageBuffer = Buffer.from(data, 'base64');
-      const filePath = `${trainingDataDir}/image_${index}.jpg`;
-      const file = bucket.file(filePath);
-      await file.save(imageBuffer, { contentType: 'image/jpeg' });
-      
-      if (index === 0) {
-        await file.makePublic();
-        thumbnailUrl = file.publicUrl();
-      }
-    });
-    await Promise.all(uploadPromises);
-
-    await characterRef.update({
-      status: 'training',
-      thumbnailUrl: thumbnailUrl,
-    });
     
-    console.log(`[${characterId}] Upload complete. Starting Vertex AI Job...`);
+    console.log(`[${characterId}] DB record created. Starting Vertex AI Job...`);
 
     // ---
     // !!! TOTO JE SIMULÁCIA TRÉNINGU !!!
@@ -165,7 +179,14 @@ app.post('/startCharacterTraining', authMiddleware, async (req: Request, res: Re
 
   } catch (error) {
     console.error(`[${characterId}] Error starting character training:`, error);
-    await characterRef.delete().catch(); // Cleanup
+    // Ak sa zápis do DB nepodaril, skúsime zmazať priečinok v Storage
+    try {
+      await bucket.deleteFiles({
+        prefix: `training-data/${uid}/${characterId}/`
+      });
+    } catch (cleanupError) {
+      console.error(`[${characterId}] Cleanup failed:`, cleanupError);
+    }
     res.status(500).send('Failed to start training job.');
   }
 });
@@ -244,7 +265,8 @@ app.post('/saveVisualization', authMiddleware, async (req: Request, res: Respons
             return res.status(403).send('Forbidden: You do not own this character.');
         }
 
-        const base64Data = base64Image.replace(/^data:image\/png;base64,/, "");
+        // Pre ukladanie vizualizácií je base64 v poriadku, je to len 1 obrázok
+        const base64Data = base64Image.replace(/^data:image\/(png|jpeg);base64,/, "");
         const imageBuffer = Buffer.from(base64Data, 'base64');
         const newImageId = uuidv4();
         const filePath = `visualizations/${uid}/${characterId}/${newImageId}.jpg`;
