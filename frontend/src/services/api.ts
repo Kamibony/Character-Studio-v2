@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import type { TrainedCharacter, Visualization } from '../types'; // <-- PRIDAJ TENTO RIADOK
+import type { TrainedCharacter, Visualization } from '../types';
 
 const callApi = async <T,>(endpoint: string, body: object): Promise<T> => {
   const user = auth.currentUser;
@@ -29,10 +29,23 @@ const callApi = async <T,>(endpoint: string, body: object): Promise<T> => {
   return response.json();
 };
 
-// --- API Funkcie pre Fázu 1 ---
+// --- API Funkcie pre Fázu 1 (UPRAVENÉ) ---
 
-export const startCharacterTraining = (characterName: string, images: string[]) => 
-  callApi<{ id: string, status: string, name: string }>('/startCharacterTraining', { characterName, images });
+/**
+ * Získa "podpísanú" URL od backendu na priame nahratie súboru do Storage.
+ */
+export const getUploadUrl = (characterId: string, fileName: string, contentType: string) => 
+  callApi<{ uploadUrl: string, publicUrl: string }>('/getUploadUrl', { characterId, fileName, contentType });
+
+/**
+ * Povie backendu, aby začal trénovací proces.
+ * Volá sa AŽ PO úspešnom nahratí všetkých obrázkov do Storage.
+ */
+export const startCharacterTraining = (characterName: string, characterId: string, imageCount: number, thumbnailUrl: string) => 
+  callApi<{ id: string, status: string, name: string }>(
+    '/startCharacterTraining', 
+    { characterName, characterId, imageCount, thumbnailUrl }
+  );
 
 export const getTrainedCharacterById = (characterId: string) => 
   callApi<TrainedCharacter>('/getTrainedCharacterById', { characterId });
