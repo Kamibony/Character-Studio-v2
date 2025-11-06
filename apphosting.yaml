@@ -4,12 +4,12 @@ backend:
   id: "backend-firebase"
   root: backend
   run: npm run start
-  # --- TÚTO SEKCIU PRIDÁVAME ---
-  # Zmierňujeme bezpečnostné politiky, aby fungoval Firebase signInWithPopup
+  # --- TOTO JE KĽÚČOVÁ OPRAVA PRE POP-UP OKNO ---
+  # Zmierňuje bezpečnostné hlavičky, aby sa pop-up mohol rozprávať s hlavnou stránkou.
   headers:
     - "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
     - "Cross-Origin-Embedder-Policy": "unsafe-none"
-  # --- KONIEC PRIDANEJ SEKCIE ---
+  # --- KONIEC OPRAVY ---
 
 rewrites:
   # 1. PRAVIDLO: Všetky cesty, ktoré začínajú na /__/ (Firebase magic paths),
