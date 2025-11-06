@@ -56,7 +56,9 @@ async function initializeGenAI() {
 // --- Express Aplikácia ---
 const app = express();
 app.use(cors({ origin: true }));
-app.use(express.json({ limit: '25mb' })); // Zvýšený limit pre viac obrázkov
+// --- ZMENA: Zvýšený limit pre viac obrázkov z 25MB na 50MB ---
+app.use(express.json({ limit: '50mb' })); 
+// ---------------------------------------------------------
 
 // --- VRÁTENÝ SPÄŤ BLOK NA OBSLUHU FRONTENDU ---
 // Toto povie Expressu, aby zobrazil statické súbory (React app) z adresára `public`
