@@ -1,45 +1,47 @@
-import { useState, ChangeEvent } from 'react';
+import { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { startCharacterTraining } from '../services/api';
+import { startCharacterTraining, getUploadUrl } from '../services/api';
 import Loader from '../components/Loader';
 import ErrorDisplay from '../components/ErrorDisplay';
 import { UploadCloud, X, CheckCircle } from 'lucide-react';
-
-// Pomocná funkcia na čítanie súboru ako base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
-  });
-};
+import { v4 as uuidv4 } from 'uuid';
 
 const CreateCharacter = () => {
   const [characterName, setCharacterName] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+      const validNewFiles = newFiles.filter(file => file.type.startsWith('image/'));
+      setFiles((prevFiles) => [...prevFiles, ...validNewFiles]);
 
-      // Generovanie náhľadov
-      const newPreviewsPromises: Promise<string>[] = newFiles.map(fileToBase64);
-      Promise.all(newPreviewsPromises).then((base64Files) => {
-        setPreviews((prevPreviews) => [...prevPreviews, ...base64Files]);
-      });
+      // Generovanie náhľadov pomocou URL.createObjectURL
+      const newPreviews = validNewFiles.map(file => URL.createObjectURL(file));
+      setPreviews((prevPreviews) => [...prevPreviews, ...newPreviews]);
+      
       // Vyčistí input, aby bolo možné pridať rovnaký súbor znova
       e.target.value = "";
     }
   };
 
+  // Uvoľnenie object URLs z pamäte, keď sa komponent odpojí
+  useEffect(() => {
+    return () => {
+      previews.forEach(previewUrl => URL.revokeObjectURL(previewUrl));
+    };
+  }, [previews]);
+
   const removeImage = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+    
+    // Uvoľníme object URL z pamäte pred odstránením
+    URL.revokeObjectURL(previews[index]);
     setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -57,18 +59,53 @@ const CreateCharacter = () => {
     setLoading(true);
     setError(null);
 
+    const newCharacterId = uuidv4();
+    let thumbnailUrl = '';
+
     try {
-      // Všetky náhľady sú už base64 stringy
-      await startCharacterTraining(characterName, previews);
+      setLoadingMessage(`Nahrávam ${files.length} obrázkov... (0/${files.length})`);
+      
+      const uploadPromises = files.map(async (file, index) => {
+        // 1. Získame podpísanú URL z nášho backendu
+        const fileName = `image_${index}.${file.name.split('.').pop() || 'jpg'}`;
+        const { uploadUrl, publicUrl } = await getUploadUrl(newCharacterId, fileName, file.type);
+
+        // 2. Nahráme súbor priamo do Google Cloud Storage
+        await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type,
+          },
+        });
+        
+        // Aktualizujeme správu o priebehu
+        setLoadingMessage(prev => prev.replace(/\(\d+\//, `(${index + 1}/`));
+
+        // 3. Uložíme si URL prvého obrázka ako thumbnail
+        if (index === 0) {
+          thumbnailUrl = publicUrl;
+        }
+      });
+
+      // Počkáme na dokončenie všetkých nahrávaní
+      await Promise.all(uploadPromises);
+
+      // 4. AŽ TERAZ povieme backendu, aby začal trénovať
+      setLoadingMessage('Obrázky nahraté. Spúšťam trénovací proces...');
+      await startCharacterTraining(characterName, newCharacterId, files.length, thumbnailUrl);
+      
       navigate('/'); // Presmerujeme do knižnice, kde uvidí "trénuje sa"
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start training.');
       setLoading(false);
-    }
+    } 
+    // `setLoading(false)` sa nevolá v `finally`, pretože po úspechu navigujeme preč
   };
 
   if (loading) {
-    return <Loader fullScreen={true} message="Spúšťa sa trénovací proces... Obrázky sa nahrávajú." />;
+    return <Loader fullScreen={true} message={loadingMessage} />;
   }
 
   return (
