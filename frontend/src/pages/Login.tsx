@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  signInWithRedirect, 
-  setPersistence, 
-  browserLocalPersistence 
+  // --- ZMENA: Importujeme signInWithPopup namiesto signInWithRedirect ---
+  signInWithPopup 
 } from 'firebase/auth';
-// --- TOTO JE OPRAVENÝ RIADOK (bola tu zlá cesta './') ---
 import { auth, googleProvider } from '../services/firebase';
-// ---------------------------------------------------
 import { useAuth } from '../App';
 import Loader from '../components/Loader';
 
@@ -17,35 +14,49 @@ const Login = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Tento useEffect už len presmeruje preč, ak je používateľ prihlásený
+  // Tento useEffect presmeruje preč, ak je používateľ prihlásený.
+  // Po úspešnom pop-up sa stav 'user' v App.tsx zmení,
+  // tento hook to zachytí a presmeruje.
   useEffect(() => {
     if (!loading && user) {
       navigate('/');
     }
     
+    // Ak sa načítanie skončilo a nie je user, odblokujeme UI
     if (!loading && !user) {
       setIsAuthenticating(false);
     }
 
   }, [user, loading, navigate]);
 
-  const handleSignIn = () => {
+  // --- ZMENENÝ BLOK: Použitie signInWithPopup ---
+  const handleSignIn = async () => {
     setIsAuthenticating(true);
+    setError(null);
 
-    // Oprava perzistencie (táto bola správna)
-    setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-        return signInWithRedirect(auth, googleProvider);
-      })
-      .catch((err) => {
-        console.error("Sign-in error:", err);
-        setError("Could not start sign-in process.");
-        setIsAuthenticating(false);
-      });
+    try {
+      // Voláme signInWithPopup, ktoré otvorí nové okno
+      // a vráti UserCredential po úspechu.
+      await signInWithPopup(auth, googleProvider);
+      // Po úspechu sa automaticky spustí onAuthStateChanged v App.tsx,
+      // ktorý nastaví globálneho 'user'.
+      // Tento komponent sa potom vďaka useEffect-u vyššie presmeruje.
+    } catch (err) {
+      const error = err as Error & { code: string };
+      // Ignorujeme chybu, ak používateľ sám zavrel pop-up okno
+      if (error.code !== 'auth/popup-closed-by-user') {
+        console.error("Sign-in error:", error);
+        setError("Could not sign in. Please try again.");
+      }
+      setIsAuthenticating(false);
+    }
   };
+  // --- KONIEC ZMENENÉHO BLOKU ---
 
+  // Ak sa stále overuje (čaká na zatvorenie pop-up) alebo App.tsx načíta,
+  // zobrazíme loader.
   if (loading || isAuthenticating) {
-    return <Loader fullScreen={true} message={loading ? 'Loading...' : 'Authenticating...'} />;
+    return <Loader fullScreen={true} message={loading ? 'Loading...' : 'Waiting for authentication...'} />;
   }
 
   return (
